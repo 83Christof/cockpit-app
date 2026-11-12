@@ -3,7 +3,7 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -23,12 +23,38 @@ function bar(val, max, cls) {
   return `<div class="bar ${cls || ""}"><i style="width:${p}%"></i></div>`;
 }
 
-/* Zähler je Tageszeit (morgens, mittags, abends) mit Gesamtsumme im Hintergrund */
+/* Medikamente und Pflege je Tageszeit: Reiter Morgens/Mittags/Abends, Zähler starten je Tageszeit bei 0, Summe läuft im Hintergrund */
 const PARTS3 = [["m", "Morgens"], ["n", "Mittags"], ["e", "Abends"]];
-function medParts(id, label, m) {
-  const P = m[id + "P"] || {};
-  const cell = ([p, l]) => `<div class="mp"><span class="muted small">${l}</span><div class="mpc"><button class="ic sm" data-act="medp" data-m="${id}" data-p="${p}" data-d="-1" aria-label="${esc(label)} ${l} weniger">−</button><b>${P[p] || 0}</b><button class="ic sm" data-act="medp" data-m="${id}" data-p="${p}" data-d="1" aria-label="${esc(label)} ${l} mehr">+</button></div></div>`;
-  return `<div class="medparts"><div class="row between"><span>${esc(label)}</span><b class="muted">Gesamt ${m[id] || 0}</b></div><div class="mp3">${PARTS3.map(cell).join("")}</div>${P.o ? `<p class="muted small">${P.o} früher ohne Tageszeit eingetragen.</p>` : ""}</div>`;
+const PNAME = { m: "Morgens", n: "Mittags", e: "Abends" };
+const SKKEY = { m: "skM", n: "skN", e: "skE" };
+const shortName = s => String(s).split(/[ (]/)[0];
+function curPart() {
+  if (ui.medPart) return ui.medPart;
+  if (ui.date !== dkey()) return "m";
+  const h = new Date().getHours();
+  return h < 11 ? "m" : h < 17 ? "n" : "e";
+}
+function medPanel(m) {
+  const p = curPart(), pl = PNAME[p], idx = PARTS3.findIndex(x => x[0] === p);
+  const P = id => (m[id + "P"] || {})[p] || 0;
+  const had = id => !!(m[SKKEY[id]] || (m.allegraP || {})[id] || (m.cremeP || {})[id]);
+  const tabs = PARTS3.map(([id, l]) => `<button class="${p === id ? "on" : ""}" data-act="medpart" data-p="${id}">${l}${had(id) ? " ✓" : ""}</button>`).join("");
+  const cnt = (id, label) => `<div class="stepper"><span>${esc(label)}<br><span class="muted small">${pl}</span></span><div><button class="ic" data-act="medp" data-m="${id}" data-p="${p}" data-d="-1" aria-label="${esc(label)} ${pl} weniger">−</button><b>${P(id)}</b><button class="ic" data-act="medp" data-m="${id}" data-p="${p}" data-d="1" aria-label="${esc(label)} ${pl} mehr">+</button></div></div>`;
+  const taken = !!m[SKKEY[p]], dose = (medCfg().skD || [])[idx];
+  const ov = PARTS3.map(([id, l]) => {
+    const parts = [];
+    if (m[SKKEY[id]]) parts.push("Tablette ✓");
+    const a = (m.allegraP || {})[id], c = (m.cremeP || {})[id];
+    if (a) parts.push(shortName(mname("ah")) + " " + a);
+    if (c) parts.push(shortName(mname("cr")) + " " + c);
+    return `<div class="ov ${id === p ? "cur" : ""}"><b>${l}</b><span>${esc(parts.join(" · ") || "–")}</span></div>`;
+  }).join("");
+  const o = (m.allegraP && m.allegraP.o) || 0, oc = (m.cremeP && m.cremeP.o) || 0;
+  return `<div class="seg parts">${tabs}</div>
+  <button class="tog wide ${taken ? "on" : ""}" data-act="med" data-m="${SKKEY[p]}"><span>${esc(mname("sk"))}${dose ? " (" + esc(dose) + ")" : ""} ${pl.toLowerCase()}: ${taken ? "genommen ✓" : "noch nicht genommen"}</span></button>
+  ${cnt("allegra", mname("ah") + " (bei Bedarf)")}
+  ${cnt("creme", mname("cr"))}
+  <div class="ovbox"><div class="label">Heute im Überblick</div>${ov}<div class="muted small">Gesamt: ${esc(shortName(mname("ah")))} ${m.allegra || 0} · ${esc(shortName(mname("cr")))} ${m.creme || 0}${o || oc ? ` (davon früher ohne Tageszeit: ${o} und ${oc})` : ""}</div></div>`;
 }
 
 /* ---------- Cockpit ---------- */
@@ -38,8 +64,6 @@ function viewHeute() {
   const lightTxt = { g: "Der Tag sieht gut aus", y: "In Maßen, achte auf den Rest des Tages", r: "Mehrere rote Einträge" };
   const reds = s.items.filter(i => i.r === "r"), dups = dupIds(k);
   const late = isToday() && !c && new Date().getHours() >= parseInt((S.profile.reminder || "21:00").split(":")[0], 10);
-  const sk = (id, label) => `<button class="tog ${m[id] ? "on" : ""}" data-act="med" data-m="${id}"><span>${label}</span></button>`;
-  const step = (id, label, max) => `<div class="stepper"><span>${label}</span><div><button class="ic" data-act="medn" data-m="${id}" data-d="-1" aria-label="${label} weniger">−</button><b>${m[id] || 0}</b><button class="ic" data-act="medn" data-m="${id}" data-d="1" aria-label="${label} mehr">+</button></div></div>`;
   return `${dateNav()}
   ${late ? `<div class="banner" role="alert"><strong>Abend-Check offen</strong><span>Wie war dein Tag mit der Schuppenflechte?</span><button class="btn small" data-act="abend">Jetzt eintragen</button></div>` : ""}
   <section class="card">
@@ -62,11 +86,8 @@ function viewHeute() {
   </section>
   <section class="card">
     <h2>Medikamente und Pflege</h2>
-    <div class="label">${esc(mname("sk"))}</div>
-    <div class="togs">${sk("skM", doseLbl(0, "Morgens"))}${sk("skN", doseLbl(1, "Mittags"))}${sk("skE", doseLbl(2, "Abends"))}</div>
-    ${medParts("allegra", mname("ah") + " (bei Bedarf)", m)}
+    ${medPanel(m)}
     ${ahLimit() && (m.allegra || 0) > ahLimit() ? `<p class="warn">Mehr als die eingestellte Höchstmenge von ${ahLimit()} pro Tag.</p>` : ""}
-    ${medParts("creme", mname("cr") + " (Mal angewendet)", m)}
     <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar"><span>${esc(mname("fo"))} angewendet</span></button></div>
     <p class="note">${esc(NOTE_BILASTIN)}</p>
   </section>
@@ -130,10 +151,7 @@ function viewAbend() {
   </section>
   <section class="card">
     <h2>Medikamente heute</h2>
-    <div class="label">${esc(mname("sk"))}</div>
-    <div class="togs"><button class="tog ${m.skM ? "on" : ""}" data-act="med" data-m="skM" data-keep="1"><span>Morgens</span></button><button class="tog ${m.skN ? "on" : ""}" data-act="med" data-m="skN" data-keep="1"><span>Mittags</span></button><button class="tog ${m.skE ? "on" : ""}" data-act="med" data-m="skE" data-keep="1"><span>Abends</span></button></div>
-    ${medParts("allegra", mname("ah"), m)}
-    ${medParts("creme", "Eincremen", m)}
+    ${medPanel(m)}
     <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar" data-keep="1"><span>${esc(mname("fo"))}</span></button></div>
     <div class="label">Nebenwirkungen der Tabletten</div>
     <div class="togs">${gi.map(g => `<button class="tog ${a.gi.includes(g) ? "on" : ""}" data-act="gi" data-g="${esc(g)}"><span>${esc(g)}</span></button>`).join("")}</div>

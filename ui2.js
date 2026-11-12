@@ -177,8 +177,9 @@ document.addEventListener("click", async e => {
   switch (a) {
     case "go": location.hash = el.dataset.r; break;
     case "back": ui.abend = null; location.hash = "heute"; break;
-    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; render(); } break; }
+    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; ui.medPart = null; render(); } break; }
     case "med": { const m = day(k).meds; m[el.dataset.m] = !m[el.dataset.m]; save(); render(); break; }
+    case "medpart": ui.medPart = el.dataset.p; render(); break;
     case "medp": {
       const m = day(k).meds, id = el.dataset.m, p = el.dataset.p;
       const P = m[id + "P"] || (m[id + "P"] = { m: 0, n: 0, e: 0, o: m[id] || 0 });
