@@ -128,7 +128,7 @@ function viewEinstellungen() {
     <p class="muted small">Diese Lebensmittel werden in der Ampel mindestens gelb markiert. Streiche nichts pauschal, sondern teste gezielt 2 Wochen.</p>
     <div class="chips">${WATCH_SUGGESTIONS.map(w => `<button class="chip btnchip ${pr.watch.includes(w) ? "on" : ""}" data-act="watch" data-w="${esc(w)}">${esc(w)}</button>`).join("")}</div></section>
   <section class="card"><h2>Erinnerung um 21 Uhr</h2>
-    <label class="label" for="prem">Uhrzeit</label><input id="prem" type="time" value="${esc(pr.reminder)}" data-bind="premind">
+    <div class="label">Uhrzeit</div>${timeField("reminder", pr.reminder || "21:00")}
     <label class="label" for="pu">Adresse dieser App</label><input id="pu" type="url" value="${esc(pr.appUrl || location.href.replace(/#.*$/, ""))}" data-bind="pappurl">
     <p class="muted small">Zuverlässig auf Android ist ein täglicher Kalender-Alarm. Die Datei öffnest du in der Kalender-App, der Eintrag wiederholt sich täglich und führt direkt zum Abend-Check.</p>
     <button class="btn" data-act="ics">Täglichen Kalender-Alarm laden</button></section>
@@ -155,6 +155,7 @@ function render() {
   const r = route();
   if (lastRoute === "scan" && r !== "scan") stopScan();
   if (r === "abend" && !ui.abend) openAbendData();
+  if (r !== "scan") ui.lastAdd = null;
   const v = $("#view");
   const scrollY = lastRoute === r ? window.scrollY : 0;
   const act = document.activeElement && document.activeElement.id;
@@ -204,6 +205,15 @@ document.addEventListener("click", async e => {
     case "epSet": ui.epItch = +el.dataset.v; render(); break;
     case "epAdd": { if (ui.epItch == null) { toast("Bitte die Stärke von 0 bis 10 wählen"); break; } day(k).episodes.push({ id: uid(), time: ui.epTime || nowTime(), itch: ui.epItch }); ui.epItch = null; ui.epTime = null; save(); toast("Eingetragen"); render(); break; }
     case "epDel": { const d = day(k); d.episodes = d.episodes.filter(e => e.id !== el.dataset.id); save(); render(); break; }
+    case "tstep": case "tnow": {
+      const b = el.dataset.b;
+      const acc = { mealTime: [() => ui.mealTime || nowTime(), v => { ui.mealTime = v; ui.mealTimeAuto = false; }], epTime: [() => ui.epTime || nowTime(), v => { ui.epTime = v; }], reminder: [() => S.profile.reminder || "21:00", v => { S.profile.reminder = v; save(); }] }[b];
+      if (!acc) break;
+      let v;
+      if (a === "tnow") v = nowTime();
+      else { const mins = (toMin(acc[0]()) + (el.dataset.u === "h" ? 60 : 1) * +el.dataset.d + 1440) % 1440; v = pad(Math.floor(mins / 60)) + ":" + pad(mins % 60); }
+      acc[1](v); render(); break;
+    }
     case "scanStart": startScan(); break;
     case "scanStop": stopScan(); render(); break;
     case "scanReset": stopScan(); ui.scanProduct = null; ui.scanManual = false; ui.scanErr = ""; ui.eanText = ""; render(); break;
@@ -212,7 +222,7 @@ document.addEventListener("click", async e => {
     case "hist": onCode(el.dataset.c); break;
     case "scanAdd": {
       const sp = ui.scanProduct; if (!(spGrams(sp) > 0)) { toast("Bitte eine Menge eintragen"); break; } const item = productToItem(sp.p, sp.ev, spGrams(sp));
-      day(k).meals.push({ id: uid(), slot: ui.slot || autoSlot(), time: ui.mealTime || defaultMealTime(ui.slot, k), t: Date.now(), items: [item] }); ui.mealTime = null; save(); toast("Zum Tagebuch hinzugefügt"); break;
+      const slot = ui.slot || autoSlot(), meal = addToMeal(k, slot, ui.mealTime || defaultMealTime(slot, k), [item]); ui.lastAdd = { k, mealId: meal.id }; ui.scanProduct = null; ui.mealTime = null; save(); toast("Hinzugefügt: " + item.name); render(); break;
     }
     case "rf": ui.recipeFilter = el.dataset.f; render(); break;
     case "recAdd": addRecipe(el.dataset.id); break;

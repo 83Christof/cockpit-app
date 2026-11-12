@@ -87,3 +87,27 @@ const ALT = {
   "Leberkäsebrötchen": "Vollkornbrötchen mit Hähnchen- oder Putenaufschnitt und Salat",
   "Currywurst mit Pommes": "Hähnchenbrust mit Ofengemüse"
 };
+
+/* Sofort verfügbare Ideen je Produktkategorie (ohne Internet), passend zu den Open-Food-Facts-Kategorien */
+const IDEAS = [
+  [/sodas|soft-drinks|colas|energy-drinks|iced-teas|sweetened-beverages|carbonated-drinks|fruit-juices|juices|nectars/, "Wasser, Mineralwasser mit Zitrone, ungesüßter Tee"],
+  [/hazelnut-spreads|chocolate-spreads|sweet-spreads|nut-spreads/, "Erdnussmus oder Mandelmus ohne Zucker, Frischkäse light, Hüttenkäse"],
+  [/chocolates|chocolate-bars|confectioneries|candies|gummi|chewing|biscuits|cakes|pastries|waffles|cookies|viennoiseries/, "Zartbitterschokolade ab 70 % (1 bis 2 Stücke), Nüsse (25 g), Skyr mit Zimt"],
+  [/breakfast-cereals|cereals|mueslis|granola/, "ungesüßte Haferflocken oder ungesüßtes Müsli mit Naturjoghurt und Nüssen"],
+  [/yogurts|dairy-desserts|fruit-yogurts|puddings/, "Naturjoghurt, Skyr natur, Magerquark"],
+  [/ice-creams|frozen-desserts/, "Skyr mit Kakao und Zimt, Naturjoghurt"],
+  [/chips|crisps|salty-snacks|appetizers|puffed/, "Nüsse (25 g), Gemüsesticks mit Hummus, Edamame"],
+  [/sausages|cold-cuts|salamis|hams|charcuteries|cured-meats|processed-meats/, "Geflügelaufschnitt, Räucherlachs, Hüttenkäse, Ei"],
+  [/pizzas|burgers|sandwiches|ready-meals|fast-food|frozen-meals|nuggets/, "Hähnchen-Wrap mit Salat, vorbereitete Gerichte aus dem Rezepte-Tab, Linsensuppe"],
+  [/fries|potato-products|frozen-potato/, "Ofenkartoffeln oder Süßkartoffelspalten aus dem Ofen"],
+  [/breads|white-breads|toasts|buns|bakery|baguette|bagels/, "Vollkornbrot oder Vollkornbrötchen"],
+  [/sauces|ketchup|mayonnaises|dressings|condiments/, "Senf, Kräuterquark, Joghurt-Dip"],
+  [/cheeses|processed-cheese|cream-cheese/, "Hüttenkäse, Frischkäse light, Hartkäse in kleiner Menge"],
+  [/margarines|butters|spreadable-fats/, "Frischkäse light, Hummus, wenig Olivenöl"],
+  [/instant-noodles|noodles/, "Vollkornnudeln mit Gemüse und Hähnchen"]
+];
+function localIdeas(p, ev) {
+  if (ev.tags.includes("alc")) return "Wasser, ungesüßter Tee, Kaffee ohne Zucker";
+  const s = (p.cats || []).join(" "), m = IDEAS.find(x => x[0].test(s));
+  return m ? m[1] : null;
+}

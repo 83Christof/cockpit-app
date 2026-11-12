@@ -40,6 +40,14 @@ function save() {
   }, 80);
 }
 function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null, episodes: [] }; if (!S.days[k].episodes) S.days[k].episodes = []; return S.days[k]; }
+/* Lebensmittel zur passenden Mahlzeit desselben Tages hinzufügen (gleiche Mahlzeit, höchstens 2 Stunden Abstand) */
+function addToMeal(k, slot, time, items) {
+  const d = day(k);
+  let m = d.meals.find(x => x.slot === slot && x.time && Math.abs(toMin(x.time) - toMin(time)) <= 120);
+  if (!m) { m = { id: uid(), slot, time, t: Date.now(), items: [] }; d.meals.push(m); }
+  m.items.push(...items);
+  return m;
+}
 /* ---------- Uhrzeiten ---------- */
 const nowTime = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
 const SLOT_TIME = { "Frühstück": "07:30", "Mittagessen": "12:30", "Abendessen": "19:00", "Snack": "15:30" };
@@ -149,15 +157,25 @@ function validEAN(c) {
 }
 async function lookupOFF(code) {
   if (S.offCache[code]) return S.offCache[code];
-  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 9000);
-  try {
-    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${OFF_FIELDS}`, { signal: ctl.signal });
-    const j = await r.json();
-    if (j.status !== 1 || !j.product) return { code, notFound: true };
-    const p = normalizeOFF(code, j.product);
-    S.offCache[code] = p; save();
-    return p;
-  } finally { clearTimeout(to); }
+  let lastErr = null;
+  for (let i = 0; i < 2; i++) {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 10000);
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${OFF_FIELDS}`, { signal: ctl.signal });
+      if (r.status === 404) return { code, notFound: true };
+      if (!r.ok) lastErr = new Error("Antwort " + r.status);
+      else {
+        const j = await r.json();
+        if (j.status !== 1 || !j.product) return { code, notFound: true };
+        const p = normalizeOFF(code, j.product);
+        S.offCache[code] = p; save();
+        return p;
+      }
+    } catch (e) { lastErr = e.name === "AbortError" ? new Error("Zeitüberschreitung") : new Error("keine Verbindung"); }
+    finally { clearTimeout(to); }
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  throw lastErr || new Error("unbekannter Fehler");
 }
 function normalizeOFF(code, p) {
   const n = p.nutriments || {};
@@ -287,12 +305,13 @@ const tagLabel = t => t.replace(/^en:/, "").replace(/-/g, " ");
 
 /* Open Food Facts begrenzt Suchanfragen (ca. 10 pro Minute). Darum wenige Versuche mit Pausen:
    zweimal mit Deutschland-Filter, zuletzt einmal ohne Filter. */
-async function searchOFF(tag) {
+async function searchOFF(tag, cancelled) {
   const base = "https://world.openfoodfacts.org/api/v2/search?page_size=40&sort_by=unique_scans_n&categories_tags=" + encodeURIComponent(tag);
   const urls = [base + "&countries_tags=en:germany&fields=code," + OFF_FIELDS, base + "&countries_tags=en:germany&fields=code," + OFF_FIELDS, base + "&fields=code," + OFF_FIELDS];
   const pauses = [0, 6000, 9000];
   for (let i = 0; i < urls.length; i++) {
     if (pauses[i]) await new Promise(res => setTimeout(res, pauses[i]));
+    if (cancelled && cancelled()) throw new Error("abgebrochen");
     const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
     try { const r = await fetch(urls[i], { signal: ctl.signal }); if (r.ok) { const j = await r.json(); return j.products || []; } }
     catch (e) { /* nächster Versuch */ }
@@ -301,7 +320,7 @@ async function searchOFF(tag) {
   throw new Error("Suche fehlgeschlagen");
 }
 
-async function findAlternatives(p, ev) {
+async function findAlternatives(p, ev, cancelled) {
   if (ev.tags.includes("alc")) return { t: Date.now(), tag: "", items: [], note: "Bei Alkohol gibt es keine bessere Variante in der gleichen Kategorie. Alternativen: Wasser, ungesüßter Tee, Kaffee ohne Zucker." };
   const tags = p.cats.filter(c => c.startsWith("en:") && !GENERIC_CATS.includes(c));
   if (!tags.length) return { t: Date.now(), tag: "", items: [], note: "Zu diesem Produkt ist keine Kategorie hinterlegt." };
@@ -311,7 +330,7 @@ async function findAlternatives(p, ev) {
   const seen = new Set(), items = []; let usedTag = cand[0];
   for (const tag of cand) {
     usedTag = tag;
-    const prods = await searchOFF(tag);
+    const prods = await searchOFF(tag, cancelled);
     for (const raw of prods) {
       if (!raw.code || raw.code === p.code || seen.has(raw.code)) continue;
       seen.add(raw.code);

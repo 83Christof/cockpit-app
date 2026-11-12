@@ -3,7 +3,7 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -47,7 +47,8 @@ function viewHeute() {
     <h2>Juckreiz zwischendurch</h2>
     <p class="muted small">Stärke antippen, wenn es gerade juckt. Die Uhrzeit wird mitgespeichert und später mit dem Essen verglichen.</p>
     <div class="scale">${[...Array(11).keys()].map(n => `<button class="sc s${n} ${ui.epItch === n ? "on" : ""}" data-act="epSet" data-v="${n}">${n}</button>`).join("")}</div>
-    <div class="qtyrow"><div><label class="label" for="epTime">Uhrzeit</label><input id="epTime" type="time" value="${ui.epTime || nowTime()}" data-bind="epTime"></div><div><div class="label">&nbsp;</div><button class="btn" data-act="epAdd">Eintragen</button></div></div>
+    <div class="label">Uhrzeit</div>${timeField("epTime", ui.epTime || nowTime())}
+    <button class="btn wide" data-act="epAdd">Eintragen</button>
     ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong></div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
   </section>
   <section class="card">
@@ -150,6 +151,12 @@ function itemRow(i, opts = {}) {
   ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
 }
 
+/* Eigene Uhrzeit-Auswahl: Plus/Minus für Stunde (1) und Minute (5), "Jetzt" setzt die aktuelle Zeit */
+function timeField(bind, value) {
+  const [h, m] = value.split(":");
+  const col = (unit, step, val, name) => `<div class="tcol"><button class="ic" data-act="tstep" data-b="${bind}" data-u="${unit}" data-d="${step}" aria-label="${name} plus">+</button><span class="tval">${val}</span><button class="ic" data-act="tstep" data-b="${bind}" data-u="${unit}" data-d="${-step}" aria-label="${name} minus">−</button></div>`;
+  return `<div class="timef">${col("h", 1, h, "Stunde")}<span class="tsep">:</span>${col("m", 5, m, "Minute")}<button class="btn small ghost" data-act="tnow" data-b="${bind}">Jetzt</button></div>`;
+}
 function ensureMealTime() { if (!ui.slot) ui.slot = autoSlot(); if (!ui.mealTime) { ui.mealTime = defaultMealTime(ui.slot, ui.date); ui.mealTimeAuto = true; } }
 
 function viewEssen() {
@@ -160,7 +167,7 @@ function viewEssen() {
   <section class="card">
     <h2>Was hast du gegessen oder getrunken?</h2>
     <div class="togs four">${SLOTS.map(sl => `<button class="tog ${ui.slot === sl ? "on" : ""}" data-act="slot" data-s="${sl}"><span>${sl}</span></button>`).join("")}</div>
-    <label class="label" for="mealTime">Uhrzeit</label><input id="mealTime" type="time" value="${ui.mealTime}" data-bind="mealTime">
+    <div class="label">Uhrzeit</div>${timeField("mealTime", ui.mealTime)}
     <label class="label" for="mealText">Freitext, mit Komma getrennt</label>
     <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 2 Eier, 1 Vollkornbrötchen, Kaffee, 200 g Skyr">${esc(ui.draftText)}</textarea>
     <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
@@ -186,7 +193,7 @@ function parseDraft() {
 }
 function saveDraft() {
   if (!ui.draft || !ui.draft.length) return;
-  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), time: ui.mealTime || defaultMealTime(ui.slot, ui.date), t: Date.now(), items: ui.draft });
+  addToMeal(ui.date, ui.slot || autoSlot(), ui.mealTime || defaultMealTime(ui.slot, ui.date), ui.draft);
   ui.draft = null; ui.draftText = ""; ui.mealTime = null; save(); toast("Gespeichert"); render();
 }
 
@@ -220,32 +227,32 @@ function qtyInfo(sp) {
   return Math.round(g) + " g insgesamt" + (it.kcal != null ? ", " + it.kcal + " kcal, " + fmtNum(it.p) + " g Protein" : ", keine kcal-Angabe vorhanden");
 }
 function altInner(sp) {
-  const a = sp.alt, head = "<h2>Bessere Alternativen</h2>";
-  if (!a) return head + `<p class="muted small">Ähnliche Produkte aus derselben Kategorie, die nach den gleichen Regeln besser abschneiden.</p><button class="btn small" data-act="altLoad">Alternativen suchen</button>`;
-  if (a.loading) return head + `<div class="busy"><span class="spin"></span> Suche in der Kategorie, das kann bis zu 30 Sekunden dauern…</div>`;
-  if (a.err) return head + `<p class="warn">Die Suche bei Open Food Facts hat nicht geklappt. Der Dienst begrenzt Suchanfragen, bitte in etwa einer Minute erneut versuchen.</p><button class="btn small" data-act="altLoad">Erneut versuchen</button>`;
+  const a = sp.alt, ideas = localIdeas(sp.p, sp.ev);
+  const head = "<h2>Besser wählen</h2>" + (ideas ? `<p class="note"><strong>Ideen:</strong> ${esc(ideas)}</p>` : "");
+  if (!a) return head + `<p class="muted small">Ähnliche Produkte aus derselben Kategorie, die besser abschneiden, lassen sich bei Open Food Facts suchen. Das dauert bis zu 30 Sekunden.</p><button class="btn small" data-act="altLoad">Passende Produkte suchen</button>`;
+  if (a.loading) return head + `<div class="busy"><span class="spin"></span> Suche in der Kategorie…</div>`;
+  if (a.err) return head + `<p class="muted">Die Produktsuche hat gerade nicht geklappt, Open Food Facts begrenzt Anfragen. Die Ideen oben gelten trotzdem.</p><button class="btn small" data-act="altLoad">In einer Minute erneut versuchen</button>`;
   if (a.note) return head + `<p class="muted">${esc(a.note)}</p>`;
-  if (!a.items.length) return head + `<p class="muted">In der Kategorie "${esc(a.tag)}" habe ich nichts Besseres gefunden.</p>${a.extra ? `<p class="note">${esc(a.extra)}</p>` : ""}`;
-  return head + `<p class="muted small">Kategorie: ${esc(a.tag)}, nach Beliebtheit sortiert. Antippen öffnet das Produkt.</p>` + a.items.map(x => `<button class="hist" data-act="hist" data-c="${esc(x.code)}">${dot(x.r)}<span class="im"><strong>${esc((x.brand ? x.brand + " " : "") + x.name)}</strong><span class="muted small">${[x.sugar != null ? "Zucker " + fmtNum(x.sugar) + " g" : "", x.sat != null ? "ges. Fett " + fmtNum(x.sat) + " g" : "", x.prot != null ? "Protein " + fmtNum(x.prot) + " g" : ""].filter(Boolean).join(" · ")} pro 100 g</span></span></button>`).join("") + (a.extra ? `<p class="note">${esc(a.extra)}</p>` : "");
+  if (!a.items.length) return head + `<p class="muted">In der Kategorie "${esc(a.tag)}" habe ich kein besseres Produkt gefunden.</p>`;
+  return head + `<p class="muted small">Kategorie: ${esc(a.tag)}, nach Beliebtheit sortiert. Antippen öffnet das Produkt.</p>` + a.items.map(x => `<button class="hist" data-act="hist" data-c="${esc(x.code)}">${dot(x.r)}<span class="im"><strong>${esc((x.brand ? x.brand + " " : "") + x.name)}</strong><span class="muted small">${[x.sugar != null ? "Zucker " + fmtNum(x.sugar) + " g" : "", x.sat != null ? "ges. Fett " + fmtNum(x.sat) + " g" : "", x.prot != null ? "Protein " + fmtNum(x.prot) + " g" : ""].filter(Boolean).join(" · ")} pro 100 g</span></span></button>`).join("");
 }
 function refreshAlt() { const sp = ui.scanProduct, el = $("#altbox"); if (sp && el) el.innerHTML = altInner(sp); }
 async function loadAlt() {
   const sp = ui.scanProduct; if (!sp || !sp.ev) return;
   sp.alt = { loading: true }; refreshAlt();
-  try { const r = await findAlternatives(sp.p, sp.ev); if (ui.scanProduct === sp) sp.alt = r; }
+  try { const r = await findAlternatives(sp.p, sp.ev, () => ui.scanProduct !== sp); if (ui.scanProduct === sp) sp.alt = r; }
   catch (e) { if (ui.scanProduct === sp) sp.alt = { err: true }; }
   refreshAlt();
 }
 
 async function onCode(code) {
-  stopScan(); ui.scanBusy = true; ui.scanErr = ""; render();
+  stopScan(); ui.scanBusy = true; ui.scanErr = ""; ui.lastCode = code; ui.scanProduct = null; render();
   try {
     const p = await lookupOFF(code);
     if (p.notFound) { ui.scanProduct = { p, ev: null }; ui.scanErr = ""; }
     else { ui.scanProduct = { p, ev: evalProduct(p), ...initScanQty(p) }; S.scanHistory = [{ code, name: p.name, brand: p.brand, r: ui.scanProduct.ev.r }, ...S.scanHistory.filter(h => h.code !== code)].slice(0, 12); save(); }
-  } catch (e) { ui.scanErr = "Keine Verbindung zu Open Food Facts. Prüfe das Netz und versuche es erneut."; }
+  } catch (e) { ui.scanErr = "Open Food Facts hat nicht geantwortet (" + (e.message || "Fehler") + "). Der Dienst begrenzt Anfragen, bitte erneut versuchen."; }
   ui.scanBusy = false; render();
-  if (ui.scanProduct && ui.scanProduct.ev && ui.scanProduct.ev.r === "r") loadAlt();
 }
 
 function manualProduct(form) {
@@ -293,17 +300,19 @@ function viewScan() {
       <div class="qtyrow"><div><label class="label" for="sq">Menge</label><input id="sq" inputmode="decimal" value="${sp.amount}" data-bind="scanAmt"></div>
       <div><label class="label" for="su">Einheit</label><select id="su" data-bind="scanUnit">${unitOptions(p).map(o => `<option value="${o.id}" ${sp.unit === o.id ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div></div>
       ${sp.unit === "custom" ? `<label class="label" for="se">Gewicht pro Stück in g</label><input id="se" inputmode="decimal" value="${sp.each}" data-bind="scanEach">` : ""}
-      <div class="qtyrow"><div><label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select></div>
-      <div><label class="label" for="st">Uhrzeit</label><input id="st" type="time" value="${ui.mealTime}" data-bind="mealTime"></div></div>
+      <label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select>
+      <div class="label">Uhrzeit</div>${timeField("mealTime", ui.mealTime)}
       <p class="muted small" id="scanKcal">${qtyInfo(sp)}</p>
       <div class="actions"><button class="btn" data-act="scanAdd">Zum Tagebuch hinzufügen</button><button class="btn ghost" data-act="scanReset">Schließen ohne Speichern</button></div>
       <button class="link danger" data-act="histDel" data-c="${esc(p.code)}">Aus "Zuletzt geprüft" entfernen</button>
     </section>`;
   } else {
     main = `<section class="card center"><h2>Lebensmittel prüfen</h2><p class="muted">Strichcode scannen und sofort sehen, ob es grün, gelb oder rot ist.</p><button class="btn big" data-act="scanStart">Kamera starten</button>
-      ${ui.scanErr ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}</section>`;
+      ${ui.scanErr ? `<p class="warn">${esc(ui.scanErr)}</p>${ui.lastCode ? `<button class="btn small" data-act="hist" data-c="${esc(ui.lastCode)}">Erneut versuchen</button>` : ""}` : ""}</section>`;
   }
+  const la = ui.lastAdd && !ui.scanning && !sp && !ui.scanBusy ? (S.days[ui.lastAdd.k] || { meals: [] }).meals.find(m => m.id === ui.lastAdd.mealId) : null;
+  const done = la ? `<section class="card done"><h2>Zur Mahlzeit hinzugefügt</h2><p class="muted small">${esc(la.slot)}${la.time ? ", " + esc(la.time) + " Uhr" : ""}. Weitere Lebensmittel scannen oder die Nummer eintippen: Sie kommen zur selben Mahlzeit, solange Mahlzeit und Uhrzeit passen.</p>${la.items.map(i => itemRow(i, { del: "itemDel" })).join("")}</section>` : "";
   const manual = !ui.scanning ? `<section class="card"><label class="label" for="ean">Nummer unter dem Strichcode</label><div class="inl"><input id="ean" inputmode="numeric" maxlength="14" placeholder="z. B. 4056489012345" value="${esc(ui.eanText)}" data-bind="ean"><button class="btn small" data-act="eanGo">Suchen</button></div></section>` : "";
   const hist = (!ui.scanning && !sp && S.scanHistory.length) ? `<section class="card"><h2>Zuletzt geprüft</h2>${S.scanHistory.map(h => `<div class="histrow"><button class="hist" data-act="hist" data-c="${esc(h.code)}">${dot(h.r)}<span>${esc((h.brand ? h.brand + " " : "") + h.name)}</span></button><button class="ic" data-act="histDel" data-c="${esc(h.code)}" aria-label="Entfernen">×</button></div>`).join("")}<button class="link danger" data-act="histClear">Liste leeren</button></section>` : "";
-  return `<div class="topbar"><h1>Scanner</h1></div>${ui.scanErr && sp ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}${main}${manual}${hist}`;
+  return `<div class="topbar"><h1>Scanner</h1></div>${ui.scanErr && sp ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}${done}${main}${manual}${hist}`;
 }
