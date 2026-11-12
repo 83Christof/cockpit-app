@@ -40,6 +40,17 @@ function save() {
   }, 80);
 }
 function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null, episodes: [] }; if (!S.days[k].episodes) S.days[k].episodes = []; return S.days[k]; }
+/* Mögliche Doppeleinträge eines Tages: gleiche Mahlzeit, gleicher Name, gleiche Menge (der erste bleibt unmarkiert) */
+function dupIds(k) {
+  const d = S.days[k], seen = new Set(), dup = new Set();
+  if (!d) return dup;
+  d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(m => m.items.forEach(i => {
+    const key = m.slot + "|" + i.name + "|" + (i.g ?? "");
+    if (seen.has(key)) dup.add(i.id); else seen.add(key);
+  }));
+  return dup;
+}
+
 /* Lebensmittel zur passenden Mahlzeit desselben Tages hinzufügen (gleiche Mahlzeit, höchstens 2 Stunden Abstand) */
 function addToMeal(k, slot, time, items) {
   const d = day(k);

@@ -28,7 +28,7 @@ function viewHeute() {
   const k = ui.date, d = day(k), s = daySummary(k), m = d.meds, c = d.check;
   const kmax = S.profile.kcalMax, pt = protTarget();
   const lightTxt = { g: "Der Tag sieht gut aus", y: "In Maßen, achte auf den Rest des Tages", r: "Mehrere rote Einträge" };
-  const reds = s.items.filter(i => i.r === "r");
+  const reds = s.items.filter(i => i.r === "r"), dups = dupIds(k);
   const late = isToday() && !c && new Date().getHours() >= parseInt((S.profile.reminder || "21:00").split(":")[0], 10);
   const sk = (id, label) => `<button class="tog ${m[id] ? "on" : ""}" data-act="med" data-m="${id}"><span>${label}</span></button>`;
   const step = (id, label, max) => `<div class="stepper"><span>${label}</span><div><button class="ic" data-act="medn" data-m="${id}" data-d="-1" aria-label="${label} weniger">−</button><b>${m[id] || 0}</b><button class="ic" data-act="medn" data-m="${id}" data-d="1" aria-label="${label} mehr">+</button></div></div>`;
@@ -38,7 +38,8 @@ function viewHeute() {
     <div class="row between"><h2>Essens-Ampel</h2><span class="muted">${s.items.length} Einträge</span></div>
     ${s.light ? `<div class="bigl r-${s.light}"><span class="lamp big r-${s.light}"></span><div><strong>${lightTxt[s.light]}</strong><div class="muted">${s.c.g || 0} grün · ${s.c.y || 0} gelb · ${s.c.r || 0} rot${s.unknown ? " · " + s.unknown + " ungeprüft" : ""}</div></div></div>`
       : `<p class="muted">Noch nichts eingetragen. Scanne ein Lebensmittel oder tippe, was du gegessen hast.</p>`}
-    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${reds.map(i => `<li>${esc(i.name)}: ${esc(i.why)}${i.why.endsWith(".") ? "" : "."}${ALT[i.name] ? " Besser: " + esc(ALT[i.name]) + "." : ""}</li>`).join("")}</ul></div>` : ""}
+    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${[...new Set(reds.map(i => i.name))].map(nm => { const n = reds.filter(i => i.name === nm).length, i = reds.find(x => x.name === nm); return `<li>${esc(nm)}${n > 1 ? " (" + n + "x)" : ""}: ${esc(i.why)}${i.why.endsWith(".") ? "" : "."}${ALT[nm] ? " Besser: " + esc(ALT[nm]) + "." : ""}</li>`; }).join("")}</ul></div>` : ""}
+    ${d.meals.length ? `<div class="todaylist"><div class="label">Heute eingetragen (× löscht den Eintrag)</div>${d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="muted small">${esc(ml.slot)}${ml.time ? " · " + esc(ml.time) + " Uhr" : ""}</div>${ml.items.map(i => itemRow(i, { del: "itemDel", compact: true, dup: dups.has(i.id) })).join("")}</div>`).join("")}${dups.size ? `<button class="btn small ghost" data-act="dupClean">Doppelte entfernen (${dups.size})</button>` : ""}</div>` : ""}
     <div class="meter"><div class="row between"><span>Protein</span><b>${Math.round(s.prot)} / ${pt} g</b></div>${bar(s.prot, pt, "prot")}</div>
     <div class="meter"><div class="row between"><span>Kalorien (Richtwert)</span><b class="${s.kcal > kmax ? "over" : ""}">${s.kcal} / ${kmax} kcal</b></div>${bar(s.kcal, kmax, s.kcal > kmax ? "over" : "")}</div>
     <div class="actions"><button class="btn" data-act="go" data-r="scan">Scannen</button><button class="btn ghost" data-act="go" data-r="essen">Essen eintragen</button></div>
@@ -144,9 +145,9 @@ function openAbend() {
 
 /* ---------- Essen ---------- */
 function itemRow(i, opts = {}) {
-  return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>
+  return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>${opts.dup ? " <span class=\"pill r-y\">doppelt?</span>" : ""}
   <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
-  ${i.why ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && typeof ALT !== "undefined" && ALT[i.name] ? `<span class="alt">Besser: ${esc(ALT[i.name])}</span>` : ""}</div>
+  ${i.why && !opts.compact ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && !opts.compact && typeof ALT !== "undefined" && ALT[i.name] ? `<span class="alt">Besser: ${esc(ALT[i.name])}</span>` : ""}</div>
   ${opts.gramField ? `<input class="gin" inputmode="numeric" aria-label="Gramm" value="${i.g ?? ""}" data-act-input="draftG" data-id="${i.id}" placeholder="g">` : ""}
   ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
 }
@@ -180,8 +181,9 @@ function viewEssen() {
     <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
   <section class="card">
     <div class="row between"><h2>Tagebuch</h2><span class="muted">${s.kcal} kcal · ${Math.round(s.prot)} g Protein</span></div>
-    ${d.meals.length ? d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}${ml.time ? ` <span class="muted">${esc(ml.time)} Uhr</span>` : ""}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel" })).join("")}</div>`).join("")
+    ${d.meals.length ? d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}${ml.time ? ` <span class="muted">${esc(ml.time)} Uhr</span>` : ""}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel", dup: dupIds(k).has(i.id) })).join("")}</div>`).join("")
       : `<p class="muted">Für diesen Tag ist noch nichts eingetragen.</p>`}
+    ${dupIds(k).size ? `<button class="btn small ghost" data-act="dupClean">Doppelte entfernen (${dupIds(k).size})</button>` : ""}
   </section>`;
 }
 

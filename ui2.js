@@ -199,6 +199,7 @@ document.addEventListener("click", async e => {
     case "askClaude": copyText("Bitte bewerte diese Lebensmittel für mich (Psoriasis" + (S.profile.therapy ? ", " + S.profile.therapy : "") + ", Ziel: Gewicht senken, viel Protein). Gib pro Lebensmittel kcal und Protein pro Portion sowie Ampel grün/gelb/rot mit kurzer Begründung:\n" + ui.draft.filter(i => i.src === "unknown").map(i => "- " + i.text).join("\n")); break;
     case "histDel": { const c = el.dataset.c; S.scanHistory = S.scanHistory.filter(h => h.code !== c); delete S.offCache[c]; if (ui.scanProduct && ui.scanProduct.p.code === c) ui.scanProduct = null; save(); toast("Entfernt"); render(); break; }
     case "histClear": S.scanHistory = []; S.offCache = {}; save(); render(); break;
+    case "dupClean": { const d = day(k), ids = dupIds(k), n = ids.size; d.meals.forEach(m => { m.items = m.items.filter(i => !ids.has(i.id)); }); d.meals = d.meals.filter(m => m.items.length); save(); toast(n + " Doppelte entfernt"); render(); break; }
     case "itemDel": { const d = day(k); d.meals.forEach(m => { m.items = m.items.filter(i => i.id !== el.dataset.id); }); d.meals = d.meals.filter(m => m.items.length); save(); render(); break; }
     case "altLoad": loadAlt(); break;
     case "peak": { const p = el.dataset.p, arr = ui.abend.peak || (ui.abend.peak = []); const i = arr.indexOf(p); if (i >= 0) arr.splice(i, 1); else arr.push(p); render(); break; }

@@ -176,6 +176,8 @@ input[type="range"] { padding: 0; accent-color: var(--accent); min-height: 40px;
 .tsep { font-size: 1.7rem; font-weight: 700; }
 .btn.wide { width: 100%; margin-top: 10px; }
 .done { border-color: var(--g); }
+.todaylist { margin: 10px 0; }
+.todaylist .meal { margin-top: 6px; }
 .dbh { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .tip summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; min-height: 44px; } .tip summary::-webkit-details-marker { display: none; }
 input[type="search"] { -webkit-appearance: none; appearance: none; }
