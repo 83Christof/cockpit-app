@@ -23,6 +23,14 @@ function bar(val, max, cls) {
   return `<div class="bar ${cls || ""}"><i style="width:${p}%"></i></div>`;
 }
 
+/* Zähler je Tageszeit (morgens, mittags, abends) mit Gesamtsumme im Hintergrund */
+const PARTS3 = [["m", "Morgens"], ["n", "Mittags"], ["e", "Abends"]];
+function medParts(id, label, m) {
+  const P = m[id + "P"] || {};
+  const cell = ([p, l]) => `<div class="mp"><span class="muted small">${l}</span><div class="mpc"><button class="ic sm" data-act="medp" data-m="${id}" data-p="${p}" data-d="-1" aria-label="${esc(label)} ${l} weniger">−</button><b>${P[p] || 0}</b><button class="ic sm" data-act="medp" data-m="${id}" data-p="${p}" data-d="1" aria-label="${esc(label)} ${l} mehr">+</button></div></div>`;
+  return `<div class="medparts"><div class="row between"><span>${esc(label)}</span><b class="muted">Gesamt ${m[id] || 0}</b></div><div class="mp3">${PARTS3.map(cell).join("")}</div>${P.o ? `<p class="muted small">${P.o} früher ohne Tageszeit eingetragen.</p>` : ""}</div>`;
+}
+
 /* ---------- Cockpit ---------- */
 function viewHeute() {
   const k = ui.date, d = day(k), s = daySummary(k), m = d.meds, c = d.check;
@@ -56,9 +64,9 @@ function viewHeute() {
     <h2>Medikamente und Pflege</h2>
     <div class="label">${esc(mname("sk"))}</div>
     <div class="togs">${sk("skM", doseLbl(0, "Morgens"))}${sk("skN", doseLbl(1, "Mittags"))}${sk("skE", doseLbl(2, "Abends"))}</div>
-    ${step("allegra", mname("ah") + " (bei Bedarf)")}
+    ${medParts("allegra", mname("ah") + " (bei Bedarf)", m)}
     ${ahLimit() && (m.allegra || 0) > ahLimit() ? `<p class="warn">Mehr als die eingestellte Höchstmenge von ${ahLimit()} pro Tag.</p>` : ""}
-    ${step("creme", mname("cr") + " (Mal angewendet)")}
+    ${medParts("creme", mname("cr") + " (Mal angewendet)", m)}
     <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar"><span>${esc(mname("fo"))} angewendet</span></button></div>
     <p class="note">${esc(NOTE_BILASTIN)}</p>
   </section>
@@ -124,8 +132,8 @@ function viewAbend() {
     <h2>Medikamente heute</h2>
     <div class="label">${esc(mname("sk"))}</div>
     <div class="togs"><button class="tog ${m.skM ? "on" : ""}" data-act="med" data-m="skM" data-keep="1"><span>Morgens</span></button><button class="tog ${m.skN ? "on" : ""}" data-act="med" data-m="skN" data-keep="1"><span>Mittags</span></button><button class="tog ${m.skE ? "on" : ""}" data-act="med" data-m="skE" data-keep="1"><span>Abends</span></button></div>
-    <div class="stepper"><span>${esc(mname("ah"))}</span><div><button class="ic" data-act="medn" data-m="allegra" data-d="-1" data-keep="1">−</button><b>${m.allegra || 0}</b><button class="ic" data-act="medn" data-m="allegra" data-d="1" data-keep="1">+</button></div></div>
-    <div class="stepper"><span>Eincremen</span><div><button class="ic" data-act="medn" data-m="creme" data-d="-1" data-keep="1">−</button><b>${m.creme || 0}</b><button class="ic" data-act="medn" data-m="creme" data-d="1" data-keep="1">+</button></div></div>
+    ${medParts("allegra", mname("ah"), m)}
+    ${medParts("creme", "Eincremen", m)}
     <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar" data-keep="1"><span>${esc(mname("fo"))}</span></button></div>
     <div class="label">Nebenwirkungen der Tabletten</div>
     <div class="togs">${gi.map(g => `<button class="tog ${a.gi.includes(g) ? "on" : ""}" data-act="gi" data-g="${esc(g)}"><span>${esc(g)}</span></button>`).join("")}</div>

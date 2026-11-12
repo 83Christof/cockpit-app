@@ -179,6 +179,13 @@ document.addEventListener("click", async e => {
     case "back": ui.abend = null; location.hash = "heute"; break;
     case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; render(); } break; }
     case "med": { const m = day(k).meds; m[el.dataset.m] = !m[el.dataset.m]; save(); render(); break; }
+    case "medp": {
+      const m = day(k).meds, id = el.dataset.m, p = el.dataset.p;
+      const P = m[id + "P"] || (m[id + "P"] = { m: 0, n: 0, e: 0, o: m[id] || 0 });
+      P[p] = Math.max(0, (P[p] || 0) + +el.dataset.d);
+      m[id] = (P.m || 0) + (P.n || 0) + (P.e || 0) + (P.o || 0);
+      save(); render(); break;
+    }
     case "medn": { const m = day(k).meds; m[el.dataset.m] = Math.max(0, (m[el.dataset.m] || 0) + +el.dataset.d); save(); render(); break; }
     case "abend": openAbendData(); location.hash = "abend"; break;
     case "set": { const v = el.dataset.v; ui.abend[el.dataset.k] = v === "true" ? true : v === "false" ? false : /^\d+$/.test(v) ? +v : v; render(); break; }
