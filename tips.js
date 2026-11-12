@@ -61,7 +61,6 @@ const TIPS = [
 
 const MED_TIPS = [
   { t: "Fumarsäureester (z. B. Skilarence)", d: "Während oder direkt nach einer Mahlzeit schlucken, nicht kauen oder teilen. Hochprozentigen Alkohol meiden. Flush und Magen-Darm-Beschwerden sind häufig und werden oft nach einigen Wochen besser (Patienteninformation, DermNet)." },
-  { t: "Bilastin 20 mg", d: "Fachinformation: 1 Stunde vor oder 2 Stunden nach Essen und Fruchtsaft einnehmen, Grapefruitsaft senkte die Aufnahme um 30 %. Fumarsäureester dagegen gehören zur Mahlzeit. Praktisch: Bilastin morgens 1 Stunde vor dem Frühstück oder abends 2 Stunden nach dem Abendessen. Bitte die Packungsbeilage prüfen." },
-  { t: "Bilastin-Dosis", d: "Zugelassen ist 1 Tablette (20 mg) pro Tag. Wer mehr nimmt, sollte das mit Hautarzt oder Apotheke klären." },
-  { t: "Fexofenadin (z. B. Telfast, Allegra)", d: "Apfel-, Orangen- und Grapefruitsaft senkten die Aufnahme in einer Crossover-Studie auf etwa 30 bis 40 %. Empfohlen wird Abstand von 4 Stunden davor bis 1 bis 2 Stunden danach, Einnahme mit Wasser (Medical Letter)." }
+  { t: "Allegra (Bilastin) 20 mg", d: "Fachinformation: 1 Stunde vor oder 2 Stunden nach Essen und Fruchtsaft einnehmen, Grapefruitsaft senkte die Aufnahme um 30 %. Fumarsäureester dagegen gehören zur Mahlzeit. Praktisch: Allegra morgens 1 Stunde vor dem Frühstück oder abends 2 Stunden nach dem Abendessen. Bitte die Packungsbeilage prüfen." },
+  { t: "Fexofenadin (z. B. Telfast)", d: "Apfel-, Orangen- und Grapefruitsaft senkten die Aufnahme in einer Crossover-Studie auf etwa 30 bis 40 %. Empfohlen wird Abstand von 4 Stunden davor bis 1 bis 2 Stunden danach, Einnahme mit Wasser (Medical Letter)." }
 ];

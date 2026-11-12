@@ -108,8 +108,8 @@ function viewEinstellungen() {
     <p class="muted small">Trag hier deine Bezeichnungen ein. Sie bleiben nur auf diesem Handy und erscheinen im Cockpit und im Arztbericht.</p>
     <label class="label" for="pm_sk">Tabletten zur Mahlzeit (Name und Dosis)</label><input id="pm_sk" value="${esc(medCfg().sk)}" data-bind="pm_sk">
     <div class="grid3"><div><label class="label" for="pm_d0">Morgens</label><input id="pm_d0" value="${esc(medCfg().skD[0])}" data-bind="pm_d0" placeholder="Anzahl"></div><div><label class="label" for="pm_d1">Mittags</label><input id="pm_d1" value="${esc(medCfg().skD[1])}" data-bind="pm_d1" placeholder="Anzahl"></div><div><label class="label" for="pm_d2">Abends</label><input id="pm_d2" value="${esc(medCfg().skD[2])}" data-bind="pm_d2" placeholder="Anzahl"></div></div>
-    <label class="label" for="pm_ah">Antihistaminikum bei Bedarf (Name und Dosis)</label><input id="pm_ah" value="${esc(medCfg().ah)}" data-bind="pm_ah">
-    <label class="label" for="pm_ahmax">Höchstmenge pro Tag laut Packung</label><input id="pm_ahmax" inputmode="numeric" value="${medCfg().ahMax ?? ""}" data-bind="pm_ahmax">
+    <label class="label" for="pm_ah">Antihistaminikum bei Bedarf (Name und Dosis)</label><input id="pm_ah" value="${esc(medCfg().ah)}" data-bind="pm_ah" placeholder="z. B. Allegra 20 mg">
+    <label class="label" for="pm_ahmax">Höchstmenge pro Tag (Warnung, optional)</label><input id="pm_ahmax" inputmode="numeric" value="${medCfg().ahMax ?? ""}" data-bind="pm_ahmax">
     <label class="label" for="pm_cr">Pflegecreme</label><input id="pm_cr" value="${esc(medCfg().cr)}" data-bind="pm_cr">
     <label class="label" for="pm_fo">Schaum oder Lösung (zusätzlich)</label><input id="pm_fo" value="${esc(medCfg().fo)}" data-bind="pm_fo"></section>
   <section class="card"><h2>Meine Therapie (für Bericht und Export)</h2>
@@ -188,6 +188,9 @@ document.addEventListener("click", async e => {
     case "draftSave": saveDraft(); break;
     case "mealDel": day(k).meals = day(k).meals.filter(m => m.id !== el.dataset.id); save(); render(); break;
     case "askClaude": copyText("Bitte bewerte diese Lebensmittel für mich (Psoriasis" + (S.profile.therapy ? ", " + S.profile.therapy : "") + ", Ziel: Gewicht senken, viel Protein). Gib pro Lebensmittel kcal und Protein pro Portion sowie Ampel grün/gelb/rot mit kurzer Begründung:\n" + ui.draft.filter(i => i.src === "unknown").map(i => "- " + i.text).join("\n")); break;
+    case "histDel": { const c = el.dataset.c; S.scanHistory = S.scanHistory.filter(h => h.code !== c); delete S.offCache[c]; if (ui.scanProduct && ui.scanProduct.p.code === c) ui.scanProduct = null; save(); toast("Entfernt"); render(); break; }
+    case "histClear": S.scanHistory = []; S.offCache = {}; save(); render(); break;
+    case "itemDel": { const d = day(k); d.meals.forEach(m => { m.items = m.items.filter(i => i.id !== el.dataset.id); }); d.meals = d.meals.filter(m => m.items.length); save(); render(); break; }
     case "scanStart": startScan(); break;
     case "scanStop": stopScan(); render(); break;
     case "scanReset": stopScan(); ui.scanProduct = null; ui.scanManual = false; ui.scanErr = ""; ui.eanText = ""; render(); break;

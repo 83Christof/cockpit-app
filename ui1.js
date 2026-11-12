@@ -48,7 +48,7 @@ function viewHeute() {
     <div class="label">${esc(mname("sk"))}</div>
     <div class="togs">${sk("skM", doseLbl(0, "Morgens"))}${sk("skN", doseLbl(1, "Mittags"))}${sk("skE", doseLbl(2, "Abends"))}</div>
     ${step("allegra", mname("ah") + " (bei Bedarf)")}
-    ${ahLimit() && (m.allegra || 0) > ahLimit() ? `<p class="warn">Mehr als ${ahLimit()} pro Tag${/bilastin/i.test(medCfg().ah) ? " (zugelassen ist 1 Tablette Bilastin pro Tag)" : ""}. Dosis bitte mit Hautarzt oder Apotheke abstimmen.</p>` : ""}
+    ${ahLimit() && (m.allegra || 0) > ahLimit() ? `<p class="warn">Mehr als die eingestellte Höchstmenge von ${ahLimit()} pro Tag.</p>` : ""}
     ${step("creme", mname("cr") + " (Mal angewendet)")}
     <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar"><span>${esc(mname("fo"))} angewendet</span></button></div>
     <p class="note">${esc(NOTE_BILASTIN)}</p>
@@ -158,7 +158,7 @@ function viewEssen() {
     <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
   <section class="card">
     <div class="row between"><h2>Tagebuch</h2><span class="muted">${s.kcal} kcal · ${Math.round(s.prot)} g Protein</span></div>
-    ${d.meals.length ? d.meals.map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i)).join("")}</div>`).join("")
+    ${d.meals.length ? d.meals.map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel" })).join("")}</div>`).join("")
       : `<p class="muted">Für diesen Tag ist noch nichts eingetragen.</p>`}
   </section>`;
 }
@@ -253,13 +253,14 @@ function viewScan() {
       <div class="grid2"><div><label class="label" for="sg">Menge in g oder ml</label><input id="sg" inputmode="numeric" value="${sp.grams}" data-bind="scanGrams"></div>
       <div><label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select></div></div>
       <p class="muted small" id="scanKcal">${item.kcal != null ? item.kcal + " kcal, " + fmtNum(item.p) + " g Protein bei dieser Menge" : "Keine kcal-Angabe vorhanden"}</p>
-      <div class="actions"><button class="btn" data-act="scanAdd">Hinzufügen</button><button class="btn ghost" data-act="scanReset">Nächstes Produkt</button></div>
+      <div class="actions"><button class="btn" data-act="scanAdd">Zum Tagebuch hinzufügen</button><button class="btn ghost" data-act="scanReset">Schließen ohne Speichern</button></div>
+      <button class="link danger" data-act="histDel" data-c="${esc(p.code)}">Aus "Zuletzt geprüft" entfernen</button>
     </section>`;
   } else {
     main = `<section class="card center"><h2>Lebensmittel prüfen</h2><p class="muted">Strichcode scannen und sofort sehen, ob es grün, gelb oder rot ist.</p><button class="btn big" data-act="scanStart">Kamera starten</button>
       ${ui.scanErr ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}</section>`;
   }
   const manual = !ui.scanning ? `<section class="card"><label class="label" for="ean">Nummer unter dem Strichcode</label><div class="inl"><input id="ean" inputmode="numeric" maxlength="14" placeholder="z. B. 4056489012345" value="${esc(ui.eanText)}" data-bind="ean"><button class="btn small" data-act="eanGo">Suchen</button></div></section>` : "";
-  const hist = (!ui.scanning && !sp && S.scanHistory.length) ? `<section class="card"><h2>Zuletzt geprüft</h2>${S.scanHistory.map(h => `<button class="hist" data-act="hist" data-c="${esc(h.code)}">${dot(h.r)}<span>${esc((h.brand ? h.brand + " " : "") + h.name)}</span></button>`).join("")}</section>` : "";
+  const hist = (!ui.scanning && !sp && S.scanHistory.length) ? `<section class="card"><h2>Zuletzt geprüft</h2>${S.scanHistory.map(h => `<div class="histrow"><button class="hist" data-act="hist" data-c="${esc(h.code)}">${dot(h.r)}<span>${esc((h.brand ? h.brand + " " : "") + h.name)}</span></button><button class="ic" data-act="histDel" data-c="${esc(h.code)}" aria-label="Entfernen">×</button></div>`).join("")}<button class="link danger" data-act="histClear">Liste leeren</button></section>` : "";
   return `<div class="topbar"><h1>Scanner</h1></div>${ui.scanErr && sp ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}${main}${manual}${hist}`;
 }

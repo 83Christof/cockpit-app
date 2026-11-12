@@ -155,7 +155,7 @@ const RECIPES = [
     tags: ["ohne Besteck", "Supermarkt", "Tankstelle"],
     items: ["1 Trinkjoghurt oder Skyr-Drink ohne Zuckerzusatz (ca. 330 ml)", "1 hartgekochtes Ei (Kühlregal)", "1 Handvoll Nüsse (25 g, ungesalzen)"],
     steps: ["Zucker pro 100 g auf dem Etikett prüfen: unter 5 g wählen.", "Alles im Stehen verzehrfertig."],
-    note: "Schnell, kein Besteck, überall erhältlich. Antihistaminika (z. B. Bilastin) nach Packungsbeilage zeitlich von Essen und Saft trennen." },
+    note: "Schnell, kein Besteck, überall erhältlich. Antihistaminika (z. B. Allegra) nach Packungsbeilage zeitlich von Essen und Saft trennen." },
   { id: "u4", kind: "unterwegs", title: "Lachsbrötchen mit Frischkäse", when: "Frühstück/Mittag", k: 390, p: 22, r: "g",
     tags: ["ohne Besteck", "Bäcker", "Omega-3"],
     items: ["1 Vollkornbrötchen mit Räucherlachs und Frischkäse (Bäcker oder Kühlregal)", "1 Gurke oder Karotte", "Wasser oder ungesüßter Tee"],

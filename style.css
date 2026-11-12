@@ -165,6 +165,8 @@ input[type="range"] { padding: 0; accent-color: var(--accent); min-height: 40px;
 }
 
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.histrow { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); }
+.histrow .hist { border-top: 0; flex: 1; min-width: 0; }
 .dbh { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .tip summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; min-height: 44px; } .tip summary::-webkit-details-marker { display: none; }
 input[type="search"] { -webkit-appearance: none; appearance: none; }

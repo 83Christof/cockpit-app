@@ -49,7 +49,7 @@ function viewTipps() {
     ${lnk("https://pmc.ncbi.nlm.nih.gov/articles/PMC6896351", "Yang und Chi 2019: Fischöl bei Psoriasis, Meta-Analyse")}
     ${lnk("https://pmc.ncbi.nlm.nih.gov/articles/PMC9007593", "van Acht 2022: Lifestyle changes and psoriasis severity")}
     ${lnk("https://zendy.io/title/10.1111/bjd.12670", "Armstrong 2014, Br J Dermatol: Psoriasis and smoking, Meta-Analyse")}
-    ${lnk("https://www.medicines.org.uk/emc/product/101237/smpc", "Bilastin 20 mg, Fachinformation")}
+    ${lnk("https://www.medicines.org.uk/emc/product/101237/smpc", "Allegra (Bilastin) 20 mg, Fachinformation")}
     ${lnk("https://www.medicines.org.uk/emc/files/pil.7480.pdf", "Skilarence, Patienteninformation")}
   </ul></section>`;
 }

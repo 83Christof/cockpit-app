@@ -55,7 +55,7 @@ function toast(msg) {
 function medCfg() { return Object.assign({ sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" }, S.profile.meds || {}); }
 function mname(k) { const c = medCfg(); return c[k] || { sk: "Tabletten zur Mahlzeit", ah: "Antihistaminikum", cr: "Creme", fo: "Schaum oder Lösung" }[k]; }
 function doseLbl(i, base) { const d = (medCfg().skD || [])[i]; return d ? base + " " + d : base; }
-function ahLimit() { const c = medCfg(); return c.ahMax || (/bilastin/i.test(c.ah) ? 1 : null); }
+function ahLimit() { return medCfg().ahMax || null; }
 
 /* ---------- Text-Parser ---------- */
 const normTxt = s => s.toLowerCase().replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "ss").replace(/[^a-z0-9% ]/g, " ").replace(/\s+/g, " ").trim();
@@ -165,7 +165,7 @@ function normalizeOFF(code, p) {
 }
 
 /* ---------- Produktbewertung ---------- */
-const NOTE_BILASTIN = "Fruchtsaft senkt die Aufnahme mancher Antihistaminika. Bilastin: 1 Stunde vor oder 2 Stunden nach Essen und Saft einnehmen (Fachinformation). Fumarsäureester gehören dagegen zur Mahlzeit. Packungsbeilage prüfen.";
+const NOTE_BILASTIN = "Fruchtsaft senkt die Aufnahme mancher Antihistaminika. Allegra (Bilastin): 1 Stunde vor oder 2 Stunden nach Essen und Saft einnehmen (Fachinformation). Fumarsäureester gehören dagegen zur Mahlzeit. Packungsbeilage prüfen.";
 const NOTE_SKIL = "Fumarsäureester (z. B. Skilarence) nur mit oder direkt nach einer Mahlzeit einnehmen, nicht auf nüchternen Magen.";
 
 function evalProduct(p) {
