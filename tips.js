@@ -64,3 +64,26 @@ const MED_TIPS = [
   { t: "Allegra (Bilastin) 20 mg", d: "Fachinformation: 1 Stunde vor oder 2 Stunden nach Essen und Fruchtsaft einnehmen, Grapefruitsaft senkte die Aufnahme um 30 %. Fumarsäureester dagegen gehören zur Mahlzeit. Praktisch: Allegra morgens 1 Stunde vor dem Frühstück oder abends 2 Stunden nach dem Abendessen. Bitte die Packungsbeilage prüfen." },
   { t: "Fexofenadin (z. B. Telfast)", d: "Apfel-, Orangen- und Grapefruitsaft senkten die Aufnahme in einer Crossover-Studie auf etwa 30 bis 40 %. Empfohlen wird Abstand von 4 Stunden davor bis 1 bis 2 Stunden danach, Einnahme mit Wasser (Medical Letter)." }
 ];
+
+/* Bessere Alternativen für rot bewertete Lebensmittel (Text-Tagebuch) */
+const ALT = {
+  "Cola": "Wasser, Mineralwasser mit Zitrone, ungesüßter Tee",
+  "Bier": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
+  "Wein": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
+  "Schnaps": "Wasser, ungesüßter Tee",
+  "Croissant": "Vollkornbrötchen mit Frischkäse light oder Quark",
+  "Kuchen": "Skyr oder Magerquark mit Zimt und Nüssen",
+  "Cornflakes": "ungesüßte Haferflocken mit Naturjoghurt und Nüssen",
+  "Fruchtjoghurt": "Naturjoghurt, Skyr natur oder Magerquark",
+  "Pommes": "Ofenkartoffeln, Süßkartoffelspalten aus dem Ofen, Gemüsesticks",
+  "Hähnchenschnitzel": "gegrillte oder gebratene Hähnchenbrust",
+  "Wurst": "Geflügelaufschnitt, Räucherlachs, Hüttenkäse, Ei",
+  "Burger": "Hähnchen-Wrap mit Salat, gegrilltes Hähnchen ohne Panade",
+  "Pizza": "Vollkorn-Wrap mit Hähnchen und Gemüse, Linsensuppe",
+  "Chips": "Nüsse (25 g), Gemüsesticks mit Hummus, Edamame",
+  "Schokolade": "Zartbitterschokolade ab 70 % (1 bis 2 Stücke), Nüsse",
+  "Süßigkeiten": "Nüsse, Gemüsesticks, ein paar Würfel Hartkäse",
+  "Eis": "Skyr mit Kakao und Zimt, Naturjoghurt",
+  "Leberkäsebrötchen": "Vollkornbrötchen mit Hähnchen- oder Putenaufschnitt und Salat",
+  "Currywurst mit Pommes": "Hähnchenbrust mit Ofengemüse"
+};

@@ -3,7 +3,7 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -38,10 +38,17 @@ function viewHeute() {
     <div class="row between"><h2>Essens-Ampel</h2><span class="muted">${s.items.length} Einträge</span></div>
     ${s.light ? `<div class="bigl r-${s.light}"><span class="lamp big r-${s.light}"></span><div><strong>${lightTxt[s.light]}</strong><div class="muted">${s.c.g || 0} grün · ${s.c.y || 0} gelb · ${s.c.r || 0} rot${s.unknown ? " · " + s.unknown + " ungeprüft" : ""}</div></div></div>`
       : `<p class="muted">Noch nichts eingetragen. Scanne ein Lebensmittel oder tippe, was du gegessen hast.</p>`}
-    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${reds.map(i => `<li>${esc(i.name)}: ${esc(i.why)}</li>`).join("")}</ul></div>` : ""}
+    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${reds.map(i => `<li>${esc(i.name)}: ${esc(i.why)}${i.why.endsWith(".") ? "" : "."}${ALT[i.name] ? " Besser: " + esc(ALT[i.name]) + "." : ""}</li>`).join("")}</ul></div>` : ""}
     <div class="meter"><div class="row between"><span>Protein</span><b>${Math.round(s.prot)} / ${pt} g</b></div>${bar(s.prot, pt, "prot")}</div>
     <div class="meter"><div class="row between"><span>Kalorien (Richtwert)</span><b class="${s.kcal > kmax ? "over" : ""}">${s.kcal} / ${kmax} kcal</b></div>${bar(s.kcal, kmax, s.kcal > kmax ? "over" : "")}</div>
     <div class="actions"><button class="btn" data-act="go" data-r="scan">Scannen</button><button class="btn ghost" data-act="go" data-r="essen">Essen eintragen</button></div>
+  </section>
+  <section class="card">
+    <h2>Juckreiz zwischendurch</h2>
+    <p class="muted small">Stärke antippen, wenn es gerade juckt. Die Uhrzeit wird mitgespeichert und später mit dem Essen verglichen.</p>
+    <div class="scale">${[...Array(11).keys()].map(n => `<button class="sc s${n} ${ui.epItch === n ? "on" : ""}" data-act="epSet" data-v="${n}">${n}</button>`).join("")}</div>
+    <div class="qtyrow"><div><label class="label" for="epTime">Uhrzeit</label><input id="epTime" type="time" value="${ui.epTime || nowTime()}" data-bind="epTime"></div><div><div class="label">&nbsp;</div><button class="btn" data-act="epAdd">Eintragen</button></div></div>
+    ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong></div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
   </section>
   <section class="card">
     <h2>Medikamente und Pflege</h2>
@@ -107,6 +114,11 @@ function viewAbend() {
     <p class="muted small">Links und rechts beziehen sich auf deinen Körper.</p>
   </section>
   <section class="card">
+    <h2>Wann war der Juckreiz am stärksten?</h2>
+    <p class="muted small">Mehrere Tageszeiten möglich.</p>
+    <div class="togs">${DAYPARTS.map(([id, l]) => `<button class="tog ${(a.peak || []).includes(id) ? "on" : ""}" data-act="peak" data-p="${id}"><span>${l}</span></button>`).join("")}</div>
+  </section>
+  <section class="card">
     <h2>Medikamente heute</h2>
     <div class="label">${esc(mname("sk"))}</div>
     <div class="togs"><button class="tog ${m.skM ? "on" : ""}" data-act="med" data-m="skM" data-keep="1"><span>Morgens</span></button><button class="tog ${m.skN ? "on" : ""}" data-act="med" data-m="skN" data-keep="1"><span>Mittags</span></button><button class="tog ${m.skE ? "on" : ""}" data-act="med" data-m="skE" data-keep="1"><span>Abends</span></button></div>
@@ -124,8 +136,8 @@ function viewAbend() {
 }
 function openAbend() {
   const c = day(ui.date).check;
-  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none" }
-    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none" };
+  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", peak: [...(c.peak || [])] }
+    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", peak: [] };
   location.hash = "abend";
 }
 
@@ -133,19 +145,22 @@ function openAbend() {
 function itemRow(i, opts = {}) {
   return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>
   <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
-  ${i.why ? `<span class="why">${esc(i.why)}</span>` : ""}</div>
+  ${i.why ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && typeof ALT !== "undefined" && ALT[i.name] ? `<span class="alt">Besser: ${esc(ALT[i.name])}</span>` : ""}</div>
   ${opts.gramField ? `<input class="gin" inputmode="numeric" aria-label="Gramm" value="${i.g ?? ""}" data-act-input="draftG" data-id="${i.id}" placeholder="g">` : ""}
   ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
 }
 
+function ensureMealTime() { if (!ui.slot) ui.slot = autoSlot(); if (!ui.mealTime) { ui.mealTime = defaultMealTime(ui.slot, ui.date); ui.mealTimeAuto = true; } }
+
 function viewEssen() {
   const k = ui.date, d = day(k), s = daySummary(k);
-  if (!ui.slot) ui.slot = autoSlot();
+  ensureMealTime();
   const draft = ui.draft;
   return `${dateNav()}
   <section class="card">
     <h2>Was hast du gegessen oder getrunken?</h2>
     <div class="togs four">${SLOTS.map(sl => `<button class="tog ${ui.slot === sl ? "on" : ""}" data-act="slot" data-s="${sl}"><span>${sl}</span></button>`).join("")}</div>
+    <label class="label" for="mealTime">Uhrzeit</label><input id="mealTime" type="time" value="${ui.mealTime}" data-bind="mealTime">
     <label class="label" for="mealText">Freitext, mit Komma getrennt</label>
     <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 2 Eier, 1 Vollkornbrötchen, Kaffee, 200 g Skyr">${esc(ui.draftText)}</textarea>
     <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
@@ -158,7 +173,7 @@ function viewEssen() {
     <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
   <section class="card">
     <div class="row between"><h2>Tagebuch</h2><span class="muted">${s.kcal} kcal · ${Math.round(s.prot)} g Protein</span></div>
-    ${d.meals.length ? d.meals.map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel" })).join("")}</div>`).join("")
+    ${d.meals.length ? d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}${ml.time ? ` <span class="muted">${esc(ml.time)} Uhr</span>` : ""}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel" })).join("")}</div>`).join("")
       : `<p class="muted">Für diesen Tag ist noch nichts eingetragen.</p>`}
   </section>`;
 }
@@ -171,8 +186,8 @@ function parseDraft() {
 }
 function saveDraft() {
   if (!ui.draft || !ui.draft.length) return;
-  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), t: Date.now(), items: ui.draft });
-  ui.draft = null; ui.draftText = ""; save(); toast("Gespeichert"); render();
+  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), time: ui.mealTime || defaultMealTime(ui.slot, ui.date), t: Date.now(), items: ui.draft });
+  ui.draft = null; ui.draftText = ""; ui.mealTime = null; save(); toast("Gespeichert"); render();
 }
 
 /* ---------- Scanner ---------- */
@@ -199,24 +214,49 @@ async function startScan() {
   tick();
 }
 
+
+function qtyInfo(sp) {
+  const g = spGrams(sp), it = productToItem(sp.p, sp.ev, g);
+  return Math.round(g) + " g insgesamt" + (it.kcal != null ? ", " + it.kcal + " kcal, " + fmtNum(it.p) + " g Protein" : ", keine kcal-Angabe vorhanden");
+}
+function altInner(sp) {
+  const a = sp.alt, head = "<h2>Bessere Alternativen</h2>";
+  if (!a) return head + `<p class="muted small">Ähnliche Produkte aus derselben Kategorie, die nach den gleichen Regeln besser abschneiden.</p><button class="btn small" data-act="altLoad">Alternativen suchen</button>`;
+  if (a.loading) return head + `<div class="busy"><span class="spin"></span> Suche in der Kategorie, das kann bis zu 30 Sekunden dauern…</div>`;
+  if (a.err) return head + `<p class="warn">Die Suche bei Open Food Facts hat nicht geklappt. Der Dienst begrenzt Suchanfragen, bitte in etwa einer Minute erneut versuchen.</p><button class="btn small" data-act="altLoad">Erneut versuchen</button>`;
+  if (a.note) return head + `<p class="muted">${esc(a.note)}</p>`;
+  if (!a.items.length) return head + `<p class="muted">In der Kategorie "${esc(a.tag)}" habe ich nichts Besseres gefunden.</p>${a.extra ? `<p class="note">${esc(a.extra)}</p>` : ""}`;
+  return head + `<p class="muted small">Kategorie: ${esc(a.tag)}, nach Beliebtheit sortiert. Antippen öffnet das Produkt.</p>` + a.items.map(x => `<button class="hist" data-act="hist" data-c="${esc(x.code)}">${dot(x.r)}<span class="im"><strong>${esc((x.brand ? x.brand + " " : "") + x.name)}</strong><span class="muted small">${[x.sugar != null ? "Zucker " + fmtNum(x.sugar) + " g" : "", x.sat != null ? "ges. Fett " + fmtNum(x.sat) + " g" : "", x.prot != null ? "Protein " + fmtNum(x.prot) + " g" : ""].filter(Boolean).join(" · ")} pro 100 g</span></span></button>`).join("") + (a.extra ? `<p class="note">${esc(a.extra)}</p>` : "");
+}
+function refreshAlt() { const sp = ui.scanProduct, el = $("#altbox"); if (sp && el) el.innerHTML = altInner(sp); }
+async function loadAlt() {
+  const sp = ui.scanProduct; if (!sp || !sp.ev) return;
+  sp.alt = { loading: true }; refreshAlt();
+  try { const r = await findAlternatives(sp.p, sp.ev); if (ui.scanProduct === sp) sp.alt = r; }
+  catch (e) { if (ui.scanProduct === sp) sp.alt = { err: true }; }
+  refreshAlt();
+}
+
 async function onCode(code) {
   stopScan(); ui.scanBusy = true; ui.scanErr = ""; render();
   try {
     const p = await lookupOFF(code);
     if (p.notFound) { ui.scanProduct = { p, ev: null }; ui.scanErr = ""; }
-    else { ui.scanProduct = { p, ev: evalProduct(p), grams: p.serving || 100 }; S.scanHistory = [{ code, name: p.name, brand: p.brand, r: ui.scanProduct.ev.r }, ...S.scanHistory.filter(h => h.code !== code)].slice(0, 12); save(); }
+    else { ui.scanProduct = { p, ev: evalProduct(p), ...initScanQty(p) }; S.scanHistory = [{ code, name: p.name, brand: p.brand, r: ui.scanProduct.ev.r }, ...S.scanHistory.filter(h => h.code !== code)].slice(0, 12); save(); }
   } catch (e) { ui.scanErr = "Keine Verbindung zu Open Food Facts. Prüfe das Netz und versuche es erneut."; }
   ui.scanBusy = false; render();
+  if (ui.scanProduct && ui.scanProduct.ev && ui.scanProduct.ev.r === "r") loadAlt();
 }
 
 function manualProduct(form) {
   const num = id => { const v = parseFloat(($(id, form).value || "").replace(",", ".")); return isNaN(v) ? null : v; };
   const bev = $("#mBev", form).checked, alc = $("#mAlc", form).checked;
-  const p = { code: ui.scanProduct?.p?.code || "manuell", name: $("#mName", form).value.trim() || "Eigenes Produkt", brand: "", qty: "", serving: null, kcal: num("#mKcal"), sugar: num("#mSugar"), sat: num("#mSat"), prot: num("#mProt"), fiber: num("#mFiber"), fat: null, salt: null, nova: parseInt($("#mNova", form).value, 10) || null, cats: bev ? ["en:beverages"] : [], allergens: [], ing: "", alcohol: alc ? 5 : 0, img: "" };
-  ui.scanProduct = { p, ev: evalProduct(p), grams: 100 }; ui.scanManual = false; render();
+  const p = { code: ui.scanProduct?.p?.code || "manuell", name: $("#mName", form).value.trim() || "Eigenes Produkt", brand: "", qty: "", serving: null, kcal: num("#mKcal"), sugar: num("#mSugar"), sat: num("#mSat"), prot: num("#mProt"), fiber: num("#mFiber"), fat: null, salt: null, nova: parseInt($("#mNova", form).value, 10) || null, cats: bev ? ["en:beverages"] : [], allergens: [], ing: "", alcohol: alc ? 5 : 0, img: "", manual: true };
+  ui.scanProduct = { p, ev: evalProduct(p), ...initScanQty(p) }; ui.scanManual = false; render();
 }
 
 function viewScan() {
+  ensureMealTime();
   const sp = ui.scanProduct;
   let main = "";
   if (ui.scanning) {
@@ -240,8 +280,7 @@ function viewScan() {
       <div class="actions"><button class="btn" type="submit">Bewerten</button><button class="btn ghost" type="button" data-act="scanReset">Abbrechen</button></div></form>`;
   } else if (sp && sp.ev) {
     const { p, ev } = sp;
-    const item = productToItem(p, ev, sp.grams);
-    const chip = (l, v, u) => v == null ? "" : `<span class="chip">${l} ${fmtNum(v)}${u || ""}</span>`;
+        const chip = (l, v, u) => v == null ? "" : `<span class="chip">${l} ${fmtNum(v)}${u || ""}</span>`;
     main = `<section class="card result r-${ev.r}">
       <div class="prodhead">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy">` : ""}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.brand)} ${esc(p.qty)}</span></div></div>
       <div class="bigl r-${ev.r}"><span class="lamp big r-${ev.r}"></span><div><strong>${ev.r === "g" ? "Grün: passt" : ev.r === "y" ? "Gelb: in Maßen" : ev.r === "r" ? "Rot: besser meiden" : "Unklar: Daten fehlen"}</strong><div class="muted">pro 100 g bzw. 100 ml</div></div></div>
@@ -249,10 +288,14 @@ function viewScan() {
       <div class="chips">${chip("kcal", p.kcal)}${chip("Zucker", p.sugar, " g")}${chip("ges. Fett", p.sat, " g")}${chip("Protein", p.prot, " g")}${chip("Ballast.", p.fiber, " g")}${p.nova ? `<span class="chip">NOVA ${p.nova}</span>` : ""}</div>
       ${ev.notes.map(n => `<p class="note">${esc(n)}</p>`).join("")}
     </section>
+    ${(ev.r === "r" || ev.r === "y") && !p.manual && p.cats.length ? `<section class="card" id="altbox">${altInner(sp)}</section>` : ""}
     <section class="card"><h2>Zum Tagebuch</h2>
-      <div class="grid2"><div><label class="label" for="sg">Menge in g oder ml</label><input id="sg" inputmode="numeric" value="${sp.grams}" data-bind="scanGrams"></div>
-      <div><label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select></div></div>
-      <p class="muted small" id="scanKcal">${item.kcal != null ? item.kcal + " kcal, " + fmtNum(item.p) + " g Protein bei dieser Menge" : "Keine kcal-Angabe vorhanden"}</p>
+      <div class="qtyrow"><div><label class="label" for="sq">Menge</label><input id="sq" inputmode="decimal" value="${sp.amount}" data-bind="scanAmt"></div>
+      <div><label class="label" for="su">Einheit</label><select id="su" data-bind="scanUnit">${unitOptions(p).map(o => `<option value="${o.id}" ${sp.unit === o.id ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div></div>
+      ${sp.unit === "custom" ? `<label class="label" for="se">Gewicht pro Stück in g</label><input id="se" inputmode="decimal" value="${sp.each}" data-bind="scanEach">` : ""}
+      <div class="qtyrow"><div><label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select></div>
+      <div><label class="label" for="st">Uhrzeit</label><input id="st" type="time" value="${ui.mealTime}" data-bind="mealTime"></div></div>
+      <p class="muted small" id="scanKcal">${qtyInfo(sp)}</p>
       <div class="actions"><button class="btn" data-act="scanAdd">Zum Tagebuch hinzufügen</button><button class="btn ghost" data-act="scanReset">Schließen ohne Speichern</button></div>
       <button class="link danger" data-act="histDel" data-c="${esc(p.code)}">Aus "Zuletzt geprüft" entfernen</button>
     </section>`;

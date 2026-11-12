@@ -18,7 +18,7 @@ function viewRezeptList() {
 function addRecipe(id) {
   const r = RECIPES.find(x => x.id === id); if (!r) return;
   const tags = []; if (/lachs|thunfisch/i.test(r.title + r.items.join(" "))) tags.push("fish"); tags.push("veg");
-  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), t: Date.now(), items: [{ id: uid(), name: r.title, text: "Rezept", g: null, kcal: r.k, p: r.p, r: r.r, tags, why: "Rezept aus der App", src: "recipe" }] });
+  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), time: defaultMealTime(ui.slot || autoSlot(), ui.date), t: Date.now(), items: [{ id: uid(), name: r.title, text: "Rezept", g: null, kcal: r.k, p: r.p, r: r.r, tags, why: "Rezept aus der App", src: "recipe" }] });
   save(); toast("Zum Tagebuch hinzugefügt");
 }
 
@@ -44,9 +44,15 @@ function statTiles(st) {
 }
 
 function corrTable(lag, limit) {
-  const rows = correlations().filter(c => c.lag === lag).slice(0, limit);
+  const rows = (lag === "h" ? episodeCorrelations() : correlations().filter(c => c.lag === lag)).slice(0, limit);
   if (!rows.length) return `<p class="muted">Noch zu wenige Daten. Pro Merkmal braucht es mindestens 3 Tage mit und 3 Tage ohne Eintrag.</p>`;
   return `<div class="tablewrap"><table class="tbl"><thead><tr><th>Merkmal</th><th>Mit</th><th>Ohne</th><th>Diff.</th><th>Tage</th></tr></thead><tbody>${rows.map(c => `<tr class="${c.verdict.includes("höher") ? "bad" : c.verdict.includes("niedriger") ? "good" : ""}"><td>${esc(c.label)}${c.ev ? ` <span class="ev">${c.ev}</span>` : ""}<div class="muted small">${esc(c.verdict)}</div></td><td>${fmtNum(c.mExp)}</td><td>${fmtNum(c.mUn)}</td><td>${c.diff > 0 ? "+" : ""}${fmtNum(c.diff)}</td><td>${c.nExp}/${c.nUn}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function daypartTable(st) {
+  const rows = daypartStats(st.from, st.to);
+  if (!rows.some(r => r.peak || r.n)) return `<p class="muted">Noch keine Uhrzeiten erfasst. Trag Juckreiz zwischendurch im Cockpit ein und wähle im Abend-Check die Tageszeit der Spitze.</p>`;
+  return `<div class="tablewrap"><table class="tbl"><thead><tr><th>Tageszeit</th><th>Als Spitze genannt</th><th>Einträge zwischendurch</th><th>Ø Stärke</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.peak}</td><td>${r.n}</td><td>${r.avg != null ? fmtNum(r.avg) : "–"}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function viewAuswertung() {
@@ -57,9 +63,10 @@ function viewAuswertung() {
   <section class="card">${statTiles(st)}</section>
   <section class="card"><h2>Empfehlungen</h2>${recs.map(r => `<div class="rec ${r.k}">${esc(r.t)}</div>`).join("")}
     <p class="muted small">Automatische Auswertung deiner Eintragungen, keine ärztliche Beratung. Korrelation ist nicht Ursache. Therapie nie ohne Hautarzt ändern.</p></section>
-  <section class="card"><div class="row between"><h2>Zusammenhänge</h2><div class="seg small"><button class="${ui.corrLag === 1 ? "on" : ""}" data-act="lag" data-l="1">Folgetag</button><button class="${ui.corrLag === 0 ? "on" : ""}" data-act="lag" data-l="0">Gleicher Abend</button></div></div>
+  <section class="card"><div class="row between"><h2>Zusammenhänge</h2><div class="seg small"><button class="${ui.corrLag === 1 ? "on" : ""}" data-act="lag" data-l="1">Folgetag</button><button class="${ui.corrLag === 0 ? "on" : ""}" data-act="lag" data-l="0">Gleicher Abend</button><button class="${ui.corrLag === "h" ? "on" : ""}" data-act="lag" data-l="h">1-4 h nach Essen</button></div></div>
     <p class="muted small">Mittlerer Juckreiz an Tagen mit dem Merkmal (Mit) gegenüber Tagen ohne (Ohne). Buchstaben zeigen die Studienlage (A stark, D nur Umfragen).</p>
     ${corrTable(ui.corrLag, 10)}</section>
+  <section class="card"><h2>Tageszeit</h2>${daypartTable(st)}</section>
   <section class="card"><h2>Betroffene Stellen</h2>${regs.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Stelle</th><th>Tage</th><th>Ø Stufe</th></tr></thead><tbody>${regs.map(r => `<tr><td>${esc(r.label)}</td><td>${r.days}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Noch keine Stellen erfasst.</p>`}</section>
   <section class="card"><h2>Für Claude</h2><p class="muted small">Kopiert deine Daten der letzten 30 Tage als Text. Im Chat einfügen, dann erstelle ich eine ausführliche Auswertung.</p><button class="btn" data-act="copyClaude">Daten für Claude kopieren</button></section>`;
 }
@@ -84,6 +91,7 @@ function viewBericht() {
     </tbody></table>
     <h3>Verlauf Juckreiz</h3>${itchChart(keys)}
     <h3>Betroffene Stellen</h3>${regs.length ? `<table class="tbl"><thead><tr><th>Stelle</th><th>Tage</th><th>Ø Stufe (1-3)</th></tr></thead><tbody>${regs.map(r => `<tr><td>${esc(r.label)}</td><td>${r.days}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table>` : `<p>Keine Angaben.</p>`}
+    <h3>Tageszeit des Juckreizes</h3>${daypartTable(st)}
     <h3>Auffälligkeiten (Hinweise, keine Beweise)</h3>${recs.map(r => `<p class="small">• ${esc(r.t)}</p>`).join("")}
     <h3>Tagesliste</h3>
     <div class="tablewrap"><table class="tbl tiny"><thead><tr><th>Tag</th><th>Juck</th><th>Blut</th><th>Stress</th><th>Stellen</th><th>Med</th><th>Rot/Gelb</th></tr></thead><tbody>${rowsD.map(k => { const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k); const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => REGION_LABEL[id]).join(", ") : ""; return `<tr><td>${esc(fmtDate(k))}</td><td>${c.itch ?? "–"}</td><td>${c.scratchBlood ? "ja" : ""}</td><td>${c.stress ?? ""}</td><td>${esc(reg)}</td><td>${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} ${m.allegra ? "Al" + m.allegra : ""}</td><td>${s.c.r || 0}/${s.c.y || 0}</td></tr>`; }).join("")}</tbody></table></div>
@@ -159,7 +167,7 @@ function render() {
   const fr = $("#mform"); if (fr) fr.addEventListener("submit", e => { e.preventDefault(); manualProduct(fr); });
   const rs = $("#restore"); if (rs) rs.addEventListener("change", restoreBackup);
 }
-function openAbendData() { const c = day(ui.date).check; ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none" } : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none" }; }
+function openAbendData() { const c = day(ui.date).check; ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", peak: [...(c.peak || [])] } : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", peak: [] }; }
 
 /* ---------- Ereignisse ---------- */
 document.addEventListener("click", async e => {
@@ -168,7 +176,7 @@ document.addEventListener("click", async e => {
   switch (a) {
     case "go": location.hash = el.dataset.r; break;
     case "back": ui.abend = null; location.hash = "heute"; break;
-    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; render(); } break; }
+    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; render(); } break; }
     case "med": { const m = day(k).meds; m[el.dataset.m] = !m[el.dataset.m]; save(); render(); break; }
     case "medn": { const m = day(k).meds; m[el.dataset.m] = Math.max(0, (m[el.dataset.m] || 0) + +el.dataset.d); save(); render(); break; }
     case "abend": openAbendData(); location.hash = "abend"; break;
@@ -178,10 +186,10 @@ document.addEventListener("click", async e => {
     case "abendSave": {
       const a2 = ui.abend;
       if (a2.itch == null) { toast("Bitte den Juckreiz von 0 bis 10 wählen"); break; }
-      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", ts: Date.now() };
+      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", peak: a2.peak || [], ts: Date.now() };
       save(); ui.abend = null; toast("Abend-Check gespeichert"); location.hash = "heute"; break;
     }
-    case "slot": ui.slot = el.dataset.s; render(); break;
+    case "slot": ui.slot = el.dataset.s; if (ui.mealTimeAuto) ui.mealTime = defaultMealTime(ui.slot, ui.date); render(); break;
     case "parse": parseDraft(); break;
     case "draftClear": ui.draft = null; render(); break;
     case "draftDel": ui.draft = ui.draft.filter(i => i.id !== el.dataset.id); if (!ui.draft.length) ui.draft = null; render(); break;
@@ -191,6 +199,11 @@ document.addEventListener("click", async e => {
     case "histDel": { const c = el.dataset.c; S.scanHistory = S.scanHistory.filter(h => h.code !== c); delete S.offCache[c]; if (ui.scanProduct && ui.scanProduct.p.code === c) ui.scanProduct = null; save(); toast("Entfernt"); render(); break; }
     case "histClear": S.scanHistory = []; S.offCache = {}; save(); render(); break;
     case "itemDel": { const d = day(k); d.meals.forEach(m => { m.items = m.items.filter(i => i.id !== el.dataset.id); }); d.meals = d.meals.filter(m => m.items.length); save(); render(); break; }
+    case "altLoad": loadAlt(); break;
+    case "peak": { const p = el.dataset.p, arr = ui.abend.peak || (ui.abend.peak = []); const i = arr.indexOf(p); if (i >= 0) arr.splice(i, 1); else arr.push(p); render(); break; }
+    case "epSet": ui.epItch = +el.dataset.v; render(); break;
+    case "epAdd": { if (ui.epItch == null) { toast("Bitte die Stärke von 0 bis 10 wählen"); break; } day(k).episodes.push({ id: uid(), time: ui.epTime || nowTime(), itch: ui.epItch }); ui.epItch = null; ui.epTime = null; save(); toast("Eingetragen"); render(); break; }
+    case "epDel": { const d = day(k); d.episodes = d.episodes.filter(e => e.id !== el.dataset.id); save(); render(); break; }
     case "scanStart": startScan(); break;
     case "scanStop": stopScan(); render(); break;
     case "scanReset": stopScan(); ui.scanProduct = null; ui.scanManual = false; ui.scanErr = ""; ui.eanText = ""; render(); break;
@@ -198,14 +211,14 @@ document.addEventListener("click", async e => {
     case "eanGo": { const c = ui.eanText.replace(/\D/g, ""); if (!validEAN(c)) { toast("Die Nummer ist ungültig (8 oder 13 Ziffern)"); break; } onCode(c); break; }
     case "hist": onCode(el.dataset.c); break;
     case "scanAdd": {
-      const sp = ui.scanProduct; const item = productToItem(sp.p, sp.ev, sp.grams);
-      day(k).meals.push({ id: uid(), slot: ui.slot || autoSlot(), t: Date.now(), items: [item] }); save(); toast("Zum Tagebuch hinzugefügt"); break;
+      const sp = ui.scanProduct; if (!(spGrams(sp) > 0)) { toast("Bitte eine Menge eintragen"); break; } const item = productToItem(sp.p, sp.ev, spGrams(sp));
+      day(k).meals.push({ id: uid(), slot: ui.slot || autoSlot(), time: ui.mealTime || defaultMealTime(ui.slot, k), t: Date.now(), items: [item] }); ui.mealTime = null; save(); toast("Zum Tagebuch hinzugefügt"); break;
     }
     case "rf": ui.recipeFilter = el.dataset.f; render(); break;
     case "recAdd": addRecipe(el.dataset.id); break;
     case "vt": ui.verlaufTab = el.dataset.t; render(); break;
     case "period": ui.period = +el.dataset.n; render(); break;
-    case "lag": ui.corrLag = +el.dataset.l; render(); break;
+    case "lag": ui.corrLag = el.dataset.l === "h" ? "h" : +el.dataset.l; render(); break;
     case "copyClaude": copyText(claudeExport(30)); break;
     case "print": window.print(); break;
     case "csv": downloadFile("haut-cockpit-" + dkey() + ".csv", csvExport(), "text/csv;charset=utf-8"); break;
@@ -234,11 +247,13 @@ document.addEventListener("input", e => {
   }
   switch (t.dataset.bind) {
     case "mealText": ui.draftText = t.value; break;
+    case "mealTime": ui.mealTime = t.value; ui.mealTimeAuto = false; break;
+    case "epTime": ui.epTime = t.value; break;
     case "dbq": ui.dbq = t.value; { const el = $("#dblist"); if (el) el.innerHTML = dbList(); } break;
     case "stress": ui.abend.stress = +t.value; { const lab = t.closest(".field").querySelector(".label b"); if (lab) lab.textContent = t.value; } break;
     case "note": ui.abend.note = t.value; break;
     case "ean": ui.eanText = t.value; break;
-    case "scanGrams": { const g = parseFloat(t.value.replace(",", ".")); if (g > 0 && ui.scanProduct) { ui.scanProduct.grams = g; const it = productToItem(ui.scanProduct.p, ui.scanProduct.ev, g); const el = $("#scanKcal"); if (el) el.textContent = it.kcal != null ? it.kcal + " kcal, " + fmtNum(it.p) + " g Protein bei dieser Menge" : "Keine kcal-Angabe vorhanden"; } break; }
+    case "scanAmt": case "scanEach": { const v = parseFloat(t.value.replace(",", ".")); if (ui.scanProduct) { ui.scanProduct[t.dataset.bind === "scanAmt" ? "amount" : "each"] = v > 0 ? v : 0; const el = $("#scanKcal"); if (el) el.textContent = qtyInfo(ui.scanProduct); } break; }
     case "pweight": S.profile.weight = parseFloat(t.value.replace(",", ".")) || null; save(); break;
     case "pheight": S.profile.height = parseFloat(t.value.replace(",", ".")) || null; save(); break;
     case "pkcal": S.profile.kcalMax = parseInt(t.value, 10) || 1900; save(); break;
@@ -252,7 +267,8 @@ document.addEventListener("input", e => {
   }
 });
 document.addEventListener("change", e => {
-  if (e.target.dataset.bind === "slot") ui.slot = e.target.value;
+  if (e.target.dataset.bind === "slot") { ui.slot = e.target.value; if (ui.mealTimeAuto) { ui.mealTime = defaultMealTime(ui.slot, ui.date); const el = $("#st"); if (el) el.value = ui.mealTime; } }
+  if (e.target.dataset.bind === "scanUnit" && ui.scanProduct) { ui.scanProduct.unit = e.target.value; ui.scanProduct.amount = e.target.value === "g" ? 100 : 1; render(); }
   if (e.target.dataset.actInput === "draftG") render();
 });
 

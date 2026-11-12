@@ -19,6 +19,7 @@ const FEATURES = [
   { id: "juice", label: "Fruchtsaft", ev: "D", fn: f => f.tags.has("juice") },
   { id: "fish", label: "Fisch (mögliche Schutzwirkung)", ev: "C/D", fn: f => f.tags.has("fish") },
   { id: "veg3", label: "Viel Gemüse/Obst (3 oder mehr)", ev: "C", fn: f => f.items.filter(i => (i.tags || []).includes("veg")).length >= 3 },
+  { id: "lateMeal", label: "Mahlzeit nach 20:30 Uhr", ev: "", fn: f => f.late },
   { id: "stress", label: "Hoher Stress (7 oder mehr)", ev: "", nonfood: true, fn: (f, d) => d.check && d.check.stress >= 7 },
   { id: "sleep", label: "Schlecht geschlafen", ev: "", nonfood: true, fn: (f, d) => d.check && d.check.sleepBad },
   { id: "allegra", label: "Antihistaminikum eingenommen", ev: "", nonfood: true, fn: (f, d) => (d.meds && d.meds.allegra > 0) },
@@ -29,7 +30,7 @@ function dayFeatures(k) {
   const d = S.days[k];
   const items = dayItems(k);
   const tags = new Set(items.flatMap(i => i.tags || []));
-  return { f: { items, tags }, d, k };
+  return { f: { items, tags, late: !!(d && d.meals.some(m => (m.time || "") >= "20:30")) }, d, k };
 }
 
 /** Tage mit Abend-Check (Juckreiz-Wert) */
@@ -77,6 +78,43 @@ function correlations() {
   // Merkmale, die an denselben Tagen auftreten (z. B. Alkohol und Bier), nur einmal zeigen
   const seen = new Set();
   return out.filter(c => { const sig = `${c.lag}|${c.nExp}|${c.nUn}|${c.mExp.toFixed(3)}|${c.mUn.toFixed(3)}`; if (seen.has(sig)) return false; seen.add(sig); return true; });
+}
+
+/** Juckreiz-Einträge zwischendurch, verglichen nach Essen der vorherigen 4 Stunden */
+function episodeCorrelations() {
+  const eps = [];
+  Object.keys(S.days).forEach(k => (S.days[k].episodes || []).forEach(e => eps.push({ k, t: toMin(e.time), itch: e.itch })));
+  if (eps.length < 6) return [];
+  const out = [];
+  for (const ft of FEATURES.filter(x => !x.nonfood && x.id !== "lateMeal")) {
+    const exp = [], un = [];
+    eps.forEach(e => {
+      const d = S.days[e.k];
+      const meals = (d.meals || []).filter(m => m.time && toMin(m.time) <= e.t && e.t - toMin(m.time) <= 240);
+      if (!meals.length) return;
+      const items = meals.flatMap(m => m.items), tags = new Set(items.flatMap(i => i.tags || []));
+      (ft.fn({ items, tags, late: false }, d) ? exp : un).push(e.itch);
+    });
+    if (exp.length < 3 || un.length < 3) continue;
+    const w = welch(exp, un);
+    let verdict = "kein klarer Unterschied";
+    if (Math.abs(w.diff) >= 2 && Math.abs(w.t) >= 2) verdict = w.diff > 0 ? "deutlich höher" : "deutlich niedriger";
+    else if (Math.abs(w.diff) >= 1 && Math.abs(w.t) >= 1.2) verdict = w.diff > 0 ? "tendenziell höher" : "tendenziell niedriger";
+    out.push({ id: ft.id, label: ft.label, ev: ft.ev, lag: "h", nExp: exp.length, nUn: un.length, mExp: w.m1, mUn: w.m2, diff: w.diff, t: w.t, verdict });
+  }
+  out.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  const seen = new Set();
+  return out.filter(c => { const sig = `${c.nExp}|${c.nUn}|${c.mExp.toFixed(3)}|${c.mUn.toFixed(3)}`; if (seen.has(sig)) return false; seen.add(sig); return true; });
+}
+
+function daypartStats(fromKey, toKey) {
+  const agg = Object.fromEntries(DAYPARTS.map(([id]) => [id, { peak: 0, eps: [] }]));
+  Object.keys(S.days).filter(k => k >= fromKey && k <= toKey).forEach(k => {
+    const d = S.days[k];
+    ((d.check && d.check.peak) || []).forEach(p => { if (agg[p]) agg[p].peak++; });
+    (d.episodes || []).forEach(e => agg[partOf(e.time)].eps.push(e.itch));
+  });
+  return DAYPARTS.map(([id, label]) => ({ id, label, peak: agg[id].peak, n: agg[id].eps.length, avg: mean(agg[id].eps) }));
 }
 
 function regionStats(fromKey, toKey) {
@@ -134,9 +172,13 @@ function recommendations() {
   if (st.bloody >= 3) rec.push({ k: "neg", t: `An ${st.bloody} der letzten 14 Tage hast du dich blutig gekratzt. Das hält die Haut im Entzündungskreislauf. Kurze Nägel, Kühlen statt Kratzen, Creme direkt bei Juckreiz, und beim Hautarzt ansprechen.` });
   if (st.itchHigh >= 5) rec.push({ k: "neg", t: `An ${st.itchHigh} Tagen lag der Juckreiz bei 7 oder höher. Das ist ein Grund, den Kontrolltermin vorzuziehen und die Therapie zu besprechen.` });
   const cors = correlations().filter(c => !c.nonfood && c.lag === 1 && c.verdict !== "kein klarer Unterschied");
-  const worse = cors.filter(c => c.diff > 0).slice(0, 3), better = cors.filter(c => c.diff < 0).slice(0, 2);
+  const worse = cors.filter(c => c.diff > 0).slice(0, 3), better = cors.filter(c => c.diff < 0 && (c.id === "fish" || c.id === "veg3" || c.food)).slice(0, 2);
   worse.forEach(c => rec.push({ k: "neg", t: `Nach Tagen mit "${c.label}" lag der Juckreiz am Folgetag um ${fmtNum(c.diff)} Punkte höher (${fmtNum(c.mExp)} gegenüber ${fmtNum(c.mUn)}; ${c.nExp} und ${c.nUn} Tage). Das ist ein Hinweis, kein Beweis. Sinnvoll: 2 Wochen konsequent weglassen und vergleichen.` }));
   better.forEach(c => rec.push({ k: "pos", t: `Nach Tagen mit "${c.label}" lag der Juckreiz am Folgetag um ${fmtNum(-c.diff)} Punkte niedriger. Das spricht dafür, davon mehr zu essen.` }));
+  const ec = episodeCorrelations().filter(c => c.verdict !== "kein klarer Unterschied");
+  ec.filter(c => c.diff > 0).slice(0, 2).forEach(c => rec.push({ k: "neg", t: `Innerhalb von 4 Stunden nach "${c.label}" lag der Juckreiz bei Einträgen zwischendurch um ${fmtNum(c.diff)} Punkte höher (${fmtNum(c.mExp)} gegenüber ${fmtNum(c.mUn)}; ${c.nExp} und ${c.nUn} Einträge). Das ist ein Hinweis, kein Beweis.` }));
+  const dp = daypartStats(addDays(dkey(), -29), dkey()).filter(x => x.peak > 0).sort((a, b) => b.peak - a.peak);
+  if (dp.length && dp[0].peak >= 5) rec.push({ k: "info", t: `Der Juckreiz ist meist ${dp[0].label.replace(/ \(.*\)/, "").toLowerCase()} am stärksten (an ${dp[0].peak} der letzten 30 Tage genannt). Pflege und Antihistaminikum-Zeitpunkt darauf abstimmen, mit Arzt oder Apotheke.` });
   const alcDays = st.alcDays;
   if (alcDays >= 2) rec.push({ k: "neg", t: `Alkohol an ${alcDays} der letzten 14 Tage. Alkohol ist der am besten belegte Ernährungsfaktor (Risiko) und belastet bei Fumarsäureestern (z. B. Skilarence) zusätzlich Magen und Darm.` });
   if (st.mealN >= 5 && st.kcalOver >= 3) rec.push({ k: "info", t: `Das Kalorienziel von ${S.profile.kcalMax} kcal wurde an ${st.kcalOver} Tagen überschritten. Gewichtsreduktion ist die am stärksten belegte Maßnahme bei Übergewicht.` });
@@ -155,23 +197,24 @@ function claudeExport(n) {
   lines.push("Kontext: Psoriasis. " + (S.profile.therapy ? "Therapie und Besonderheiten: " + S.profile.therapy + ". " : "") + "Ziel max. " + S.profile.kcalMax + " kcal und viel Protein. Juckreiz 0-10 (abends).");
   lines.push("Aufgabe: Zusammenhänge zwischen Essen/Trinken und Juckreiz am gleichen und am Folgetag prüfen, Muster nach Körperregion, Wirkung von Antihistaminikum/Creme, konkrete Empfehlungen für 2 Wochen und Fragen für den Hautarzt. Bitte Evidenzlage nennen und Unsicherheit kennzeichnen.");
   lines.push("");
-  lines.push("TAGE (Datum | Juckreiz | Blutig gekratzt | Stress | Schlaf schlecht | Rauchen | Regionen (Stufe 1-3) | Medikation | Essen [Ampel])");
+  lines.push("TAGE (Datum | Juckreiz | Blutig gekratzt | Stress | Schlaf schlecht | Rauchen | Regionen (Stufe 1-3) | Medikation | Essen mit Uhrzeit [Ampel] | Tageszeit der Spitze | Juckreiz zwischendurch (Uhrzeit=Stärke))");
   st.keys.forEach(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {};
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + " " + v).join("; ") : "";
-    const food = d.meals.map(ml => ml.slot + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + "g" : ""} [${i.r}]`).join(", ")).join(" | ");
-    lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? c.smoke : "nein"} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0} Creme ${m.creme || 0} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
+    const eps = (d.episodes || []).map(e => e.time + "=" + e.itch).join("; ");
+    const food = d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + "g" : ""} [${i.r}]`).join(", ")).join(" | ");
+    lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? c.smoke : "nein"} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0} Creme ${m.creme || 0} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"} | Spitze ${(c.peak || []).join("/") || "-"} | Episoden ${eps || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
   });
   return lines.join("\n");
 }
 
 function csvExport() {
-  const head = ["Datum", "Juckreiz", "Blutig", "Stress", "SchlafSchlecht", "Rauchen", "Hautzustand", "Regionen", "TablettenM", "TablettenN", "TablettenA", "Antihistaminikum", "Creme", "Schaum", "kcal", "Protein", "Rot", "Gelb", "Gruen", "Essen", "Notiz"];
+  const head = ["Datum", "Juckreiz", "Blutig", "Stress", "SchlafSchlecht", "Rauchen", "Hautzustand", "Regionen", "TablettenM", "TablettenN", "TablettenA", "Antihistaminikum", "Creme", "Schaum", "kcal", "Protein", "Rot", "Gelb", "Gruen", "Spitze", "Episoden", "Essen", "Notiz"];
   const q = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const rows = Object.keys(S.days).sort().map(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k);
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + ":" + v).join("; ") : "";
-    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? c.smoke : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, d.meals.map(ml => ml.slot + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || ""].map(q).join(";");
+    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? c.smoke : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, (c.peak || []).join("/"), (d.episodes || []).map(e => e.time + "=" + e.itch).join("; "), d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || ""].map(q).join(";");
   });
   return "﻿" + head.join(";") + "\n" + rows.join("\n");
 }

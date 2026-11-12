@@ -18,7 +18,7 @@ const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 /* ---------- Speicher ---------- */
 const KEY = "haut-cockpit-v1";
 function defaults() {
-  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [] };
+  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {} };
 }
 function loadState() {
   try {
@@ -39,7 +39,14 @@ function save() {
     } catch (e) { toast("Speichern fehlgeschlagen. Speicher voll oder gesperrt."); }
   }, 80);
 }
-function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null }; return S.days[k]; }
+function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null, episodes: [] }; if (!S.days[k].episodes) S.days[k].episodes = []; return S.days[k]; }
+/* ---------- Uhrzeiten ---------- */
+const nowTime = () => { const d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const SLOT_TIME = { "Frühstück": "07:30", "Mittagessen": "12:30", "Abendessen": "19:00", "Snack": "15:30" };
+const toMin = t => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3, 5), 10);
+const DAYPARTS = [["morgens", "Morgens (5-9)", 5, 9], ["vormittags", "Vormittags (9-12)", 9, 12], ["mittags", "Mittags (12-14)", 12, 14], ["nachmittags", "Nachmittags (14-18)", 14, 18], ["abends", "Abends (18-22)", 18, 22], ["nachts", "Nachts (22-5)", 22, 29]];
+function partOf(time) { let h = parseInt(time.slice(0, 2), 10); if (h < 5) h += 24; return (DAYPARTS.find(p => h >= p[2] && h < p[3]) || DAYPARTS[5])[0]; }
+const defaultMealTime = (slot, k) => k === dkey() ? nowTime() : (SLOT_TIME[slot] || "12:00");
 function dayItems(k) { const d = S.days[k]; return d ? d.meals.flatMap(m => m.items.map(i => ({ ...i, slot: m.slot }))) : []; }
 function protTarget() { const p = S.profile; return p.protMin || (p.weight ? Math.round(p.weight * p.protPerKg) : 100); }
 
@@ -240,6 +247,95 @@ function evalProduct(p) {
 function productToItem(p, ev, grams) {
   const g = grams || p.serving || 100;
   return { id: uid(), name: (p.brand ? p.brand + " " : "") + p.name, text: "Scan " + p.code, g: Math.round(g), kcal: p.kcal != null ? Math.round(p.kcal * g / 100) : null, p: p.prot != null ? r1(p.prot * g / 100) : null, r: ev.r, tags: ev.tags, why: ev.reasons.filter(x => x.k === "neg").map(x => x.t).join(" ") || "Scan-Bewertung", src: "scan", code: p.code };
+}
+
+
+/* ---------- Mengen-Einheiten beim Scan ---------- */
+function parseQty(q) {
+  const s = (q || "").toLowerCase().replace(",", ".");
+  const toG = (v, u) => (u === "kg" || u === "l") ? v * 1000 : u === "cl" ? v * 10 : v;
+  let m = s.match(/(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|l|cl|ml)/);
+  if (m) { const n = +m[1], each = toG(+m[2], m[3]); return { pieces: n, each, total: n * each }; }
+  m = s.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|cl|ml)/);
+  return m ? { total: toG(+m[1], m[2]) } : {};
+}
+function unitOptions(p) {
+  const bev = p.cats.includes("en:beverages") || p.cats.includes("en:waters");
+  const o = [{ id: "g", label: bev ? "ml" : "g", g: 1 }];
+  const q = parseQty(p.qty);
+  if (p.serving) o.push({ id: "portion", label: "Portion (" + Math.round(p.serving) + " g)", g: p.serving });
+  if (q.each) o.push({ id: "piece", label: "Stück (" + Math.round(q.each) + " g)", g: q.each });
+  if (q.total) o.push({ id: "pack", label: "Packung (" + Math.round(q.total) + " g)", g: q.total });
+  o.push({ id: "custom", label: "Stück (Gewicht selbst eintragen)", g: null });
+  return o;
+}
+function initScanQty(p) {
+  const ids = unitOptions(p).map(o => o.id);
+  const unit = ids.includes("portion") ? "portion" : ids.includes("piece") ? "piece" : "g";
+  return { unit, amount: unit === "g" ? 100 : 1, each: Math.round(p.serving || parseQty(p.qty).each || 30) };
+}
+function spGrams(sp) {
+  if (sp.unit === "custom") return Math.max(0, (sp.amount || 0) * (sp.each || 0));
+  const o = unitOptions(sp.p).find(x => x.id === sp.unit) || { g: 1 };
+  return Math.max(0, (sp.amount || 0) * (o.g || 1));
+}
+
+/* ---------- Alternativen aus derselben Kategorie (Open Food Facts Suche) ---------- */
+const RANK = { g: 0, y: 1, r: 2, u: 3 };
+const GENERIC_CATS = ["en:foods", "en:plant-based-foods-and-beverages", "en:plant-based-foods"];
+const tagLabel = t => t.replace(/^en:/, "").replace(/-/g, " ");
+
+/* Open Food Facts begrenzt Suchanfragen (ca. 10 pro Minute). Darum wenige Versuche mit Pausen:
+   zweimal mit Deutschland-Filter, zuletzt einmal ohne Filter. */
+async function searchOFF(tag) {
+  const base = "https://world.openfoodfacts.org/api/v2/search?page_size=40&sort_by=unique_scans_n&categories_tags=" + encodeURIComponent(tag);
+  const urls = [base + "&countries_tags=en:germany&fields=code," + OFF_FIELDS, base + "&countries_tags=en:germany&fields=code," + OFF_FIELDS, base + "&fields=code," + OFF_FIELDS];
+  const pauses = [0, 6000, 9000];
+  for (let i = 0; i < urls.length; i++) {
+    if (pauses[i]) await new Promise(res => setTimeout(res, pauses[i]));
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
+    try { const r = await fetch(urls[i], { signal: ctl.signal }); if (r.ok) { const j = await r.json(); return j.products || []; } }
+    catch (e) { /* nächster Versuch */ }
+    finally { clearTimeout(to); }
+  }
+  throw new Error("Suche fehlgeschlagen");
+}
+
+async function findAlternatives(p, ev) {
+  if (ev.tags.includes("alc")) return { t: Date.now(), tag: "", items: [], note: "Bei Alkohol gibt es keine bessere Variante in der gleichen Kategorie. Alternativen: Wasser, ungesüßter Tee, Kaffee ohne Zucker." };
+  const tags = p.cats.filter(c => c.startsWith("en:") && !GENERIC_CATS.includes(c));
+  if (!tags.length) return { t: Date.now(), tag: "", items: [], note: "Zu diesem Produkt ist keine Kategorie hinterlegt." };
+  const hit = S.altCache[p.code];
+  if (hit && Date.now() - hit.t < 7 * 864e5) return hit;
+  const cand = tags.slice(-3).reverse();
+  const seen = new Set(), items = []; let usedTag = cand[0];
+  for (const tag of cand) {
+    usedTag = tag;
+    const prods = await searchOFF(tag);
+    for (const raw of prods) {
+      if (!raw.code || raw.code === p.code || seen.has(raw.code)) continue;
+      seen.add(raw.code);
+      const q = normalizeOFF(raw.code, raw);
+      if (q.name === "Produkt ohne Namen") continue;
+      if (q.kcal == null || q.sugar == null || q.sat == null) continue; // unvollständige Daten würden fälschlich grün wirken
+      const bevP = p.cats.includes("en:beverages");
+      const cap = Math.min(bevP ? 4.5 : 12.5, Math.max(p.sugar == null ? 99 : p.sugar, 3));
+      if (q.sugar > cap) continue;
+      if (p.sat != null && q.sat > p.sat + 0.5) continue;
+      const e = evalProduct(q);
+      if (RANK[e.r] < RANK[ev.r]) items.push({ code: q.code, name: q.name, brand: q.brand, r: e.r, score: e.score, sugar: q.sugar, sat: q.sat, prot: q.prot });
+    }
+    if (items.filter(x => x.r === "g").length >= 3) break;
+  }
+  items.sort((a, b) => RANK[a.r] - RANK[b.r] || a.score - b.score);
+  const names = new Set(), top = [];
+  for (const x of items) { const k = (x.brand + "|" + x.name).toLowerCase(); if (names.has(k)) continue; names.add(k); top.push(x); if (top.length >= 5) break; }
+  const out = { t: Date.now(), tag: tagLabel(usedTag), items: top };
+  if (p.cats.includes("en:beverages")) out.extra = "Immer geeignet: Wasser, Mineralwasser mit Zitrone, ungesüßter Tee.";
+  S.altCache[p.code] = out;
+  const ks = Object.keys(S.altCache); if (ks.length > 40) ks.slice(0, ks.length - 40).forEach(k => delete S.altCache[k]);
+  save();
+  return out;
 }
 
 /* ---------- Tageszusammenfassung ---------- */
