@@ -1,0 +1,265 @@
+"use strict";
+/* Haut-Cockpit Oberfläche, Teil 1: Zustand, Cockpit, Abend-Check, Essen, Scanner */
+
+const ui = {
+  date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null
+};
+const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
+const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
+const dot = r => `<span class="lamp r-${r}" aria-label="${LIGHT[r] || ""}"></span>`;
+const pill = r => `<span class="pill r-${r}">${LIGHT[r] || ""}</span>`;
+function autoSlot() { const h = new Date().getHours(); return h < 10 ? "Frühstück" : h < 15 ? "Mittagessen" : h < 21 ? "Abendessen" : "Snack"; }
+const isToday = () => ui.date === dkey();
+
+function dateNav() {
+  return `<div class="datenav"><button class="ic" data-act="date" data-d="-1" aria-label="Vortag">‹</button>
+  <div class="dn-mid"><strong>${isToday() ? "Heute" : esc(fmtDate(ui.date))}</strong><span class="muted">${esc(fmtDateLong(ui.date))}</span></div>
+  <button class="ic" data-act="date" data-d="1" aria-label="Folgetag" ${isToday() ? "disabled" : ""}>›</button></div>`;
+}
+
+function bar(val, max, cls) {
+  const p = Math.max(0, Math.min(100, max ? (val / max) * 100 : 0));
+  return `<div class="bar ${cls || ""}"><i style="width:${p}%"></i></div>`;
+}
+
+/* ---------- Cockpit ---------- */
+function viewHeute() {
+  const k = ui.date, d = day(k), s = daySummary(k), m = d.meds, c = d.check;
+  const kmax = S.profile.kcalMax, pt = protTarget();
+  const lightTxt = { g: "Der Tag sieht gut aus", y: "In Maßen, achte auf den Rest des Tages", r: "Mehrere rote Einträge" };
+  const reds = s.items.filter(i => i.r === "r");
+  const late = isToday() && !c && new Date().getHours() >= parseInt((S.profile.reminder || "21:00").split(":")[0], 10);
+  const sk = (id, label) => `<button class="tog ${m[id] ? "on" : ""}" data-act="med" data-m="${id}"><span>${label}</span></button>`;
+  const step = (id, label, max) => `<div class="stepper"><span>${label}</span><div><button class="ic" data-act="medn" data-m="${id}" data-d="-1" aria-label="${label} weniger">−</button><b>${m[id] || 0}</b><button class="ic" data-act="medn" data-m="${id}" data-d="1" aria-label="${label} mehr">+</button></div></div>`;
+  return `${dateNav()}
+  ${late ? `<div class="banner" role="alert"><strong>Abend-Check offen</strong><span>Wie war dein Tag mit der Schuppenflechte?</span><button class="btn small" data-act="abend">Jetzt eintragen</button></div>` : ""}
+  <section class="card">
+    <div class="row between"><h2>Essens-Ampel</h2><span class="muted">${s.items.length} Einträge</span></div>
+    ${s.light ? `<div class="bigl r-${s.light}"><span class="lamp big r-${s.light}"></span><div><strong>${lightTxt[s.light]}</strong><div class="muted">${s.c.g || 0} grün · ${s.c.y || 0} gelb · ${s.c.r || 0} rot${s.unknown ? " · " + s.unknown + " ungeprüft" : ""}</div></div></div>`
+      : `<p class="muted">Noch nichts eingetragen. Scanne ein Lebensmittel oder tippe, was du gegessen hast.</p>`}
+    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${reds.map(i => `<li>${esc(i.name)}: ${esc(i.why)}</li>`).join("")}</ul></div>` : ""}
+    <div class="meter"><div class="row between"><span>Protein</span><b>${Math.round(s.prot)} / ${pt} g</b></div>${bar(s.prot, pt, "prot")}</div>
+    <div class="meter"><div class="row between"><span>Kalorien (Richtwert)</span><b class="${s.kcal > kmax ? "over" : ""}">${s.kcal} / ${kmax} kcal</b></div>${bar(s.kcal, kmax, s.kcal > kmax ? "over" : "")}</div>
+    <div class="actions"><button class="btn" data-act="go" data-r="scan">Scannen</button><button class="btn ghost" data-act="go" data-r="essen">Essen eintragen</button></div>
+  </section>
+  <section class="card">
+    <h2>Medikamente und Pflege</h2>
+    <div class="label">${esc(mname("sk"))}</div>
+    <div class="togs">${sk("skM", doseLbl(0, "Morgens"))}${sk("skN", doseLbl(1, "Mittags"))}${sk("skE", doseLbl(2, "Abends"))}</div>
+    ${step("allegra", mname("ah") + " (bei Bedarf)")}
+    ${ahLimit() && (m.allegra || 0) > ahLimit() ? `<p class="warn">Mehr als ${ahLimit()} pro Tag${/bilastin/i.test(medCfg().ah) ? " (zugelassen ist 1 Tablette Bilastin pro Tag)" : ""}. Dosis bitte mit Hautarzt oder Apotheke abstimmen.</p>` : ""}
+    ${step("creme", mname("cr") + " (Mal angewendet)")}
+    <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar"><span>${esc(mname("fo"))} angewendet</span></button></div>
+    <p class="note">${esc(NOTE_BILASTIN)}</p>
+  </section>
+  <section class="card">
+    <div class="row between"><h2>Abend-Check</h2>${c ? `<span class="pill r-g">erledigt</span>` : `<span class="pill r-u">offen</span>`}</div>
+    ${c ? `<p>Juckreiz <b>${c.itch}/10</b>${c.scratchBlood ? ", blutig gekratzt" : ""}${c.regions ? ", Regionen: " + esc(Object.entries(c.regions).filter(([, v]) => v > 0).map(([id]) => REGION_LABEL[id]).slice(0, 4).join(", ") || "keine") : ""}.</p>`
+      : `<p class="muted">Juckreiz, Hautzustand und Körperstellen. Dauert eine Minute.</p>`}
+    <button class="btn ${c ? "ghost" : ""}" data-act="abend">${c ? "Bearbeiten" : "Abend-Check starten"}</button>
+  </section>`;
+}
+
+/* ---------- Abend-Check ---------- */
+function bodyMap(view, regions) {
+  const f = view === "f";
+  const cls = id => "z l" + (regions[id] || 0);
+  const z = (id, x, y, w, h, rx = 10) => `<rect class="${cls(id)}" data-act="reg" data-id="${id}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"><title>${esc(REGION_LABEL[id])}</title></rect>`;
+  // Person links liegt von vorn rechts im Bild, von hinten links im Bild
+  const X = (xl, w) => f ? 200 - xl - w : xl;
+  const arm = (side, xl) => { // side L oder R; xl = Position für Person-links
+    const sx = side === "L" ? X(xl, 20) : X(200 - xl - 20, 20);
+    return [z("armO" + side, sx, 70, 20, 52, 9), z("armU" + side, sx + 2, 124, 17, 52, 8), z("hand" + side, sx, 178, 20, 26, 8)];
+  };
+  const leg = side => {
+    const sx = side === "L" ? X(98, 30) : X(72, 30);
+    return [z("beinO" + side, sx, 196, 30, 68, 13), z("kni" + side, sx + 2, 266, 26, 22, 9), z("beinU" + side, sx + 1, 290, 28, 46, 11), z("fuss" + side, sx - 1, 338, 30, 22, 9)];
+  };
+  const body = f
+    ? [z("gesicht", 77, 8, 46, 46, 23), z("brust", 72, 70, 56, 46, 12), z("bauch", 74, 118, 52, 48, 12), z("leiste", 80, 168, 40, 26, 10)]
+    : [z("kopfhaut", 77, 8, 46, 36, 18), z("nacken", 86, 46, 28, 20, 8), z("rueckenO", 72, 70, 56, 48, 12), z("rueckenU", 74, 120, 52, 44, 12), z("gesaess", 74, 166, 52, 30, 12)];
+  const ell = !f ? [z("ellL", X(46, 20) + 0, 112, 20, 16, 6), z("ellR", X(134, 20), 112, 20, 16, 6)] : [];
+  return `<svg viewBox="0 0 200 372" class="body" role="group" aria-label="Körper ${f ? "Vorderseite" : "Rückseite"}">${body.join("")}${arm("L", 46).join("")}${arm("R", 46).join("")}${leg("L").join("")}${leg("R").join("")}${ell.join("")}</svg>`;
+}
+
+function viewAbend() {
+  const a = ui.abend; const k = ui.date;
+  const scale = (key, label, lo, hi) => `<div class="field"><div class="label">${label}</div><div class="scale">${[...Array(11).keys()].map(n => `<button class="sc s${n} ${a[key] === n ? "on" : ""}" data-act="set" data-k="${key}" data-v="${n}">${n}</button>`).join("")}</div><div class="row between muted small"><span>${lo}</span><span>${hi}</span></div></div>`;
+  const yn = (key, label) => `<div class="field"><div class="label">${label}</div><div class="togs two"><button class="tog ${a[key] === false ? "on" : ""}" data-act="set" data-k="${key}" data-v="false"><span>Nein</span></button><button class="tog ${a[key] === true ? "on" : ""}" data-act="set" data-k="${key}" data-v="true"><span>Ja</span></button></div></div>`;
+  const gi = ["Flush (Hitzewallung)", "Durchfall", "Bauchkrämpfe/Übelkeit"];
+  const sel = Object.entries(a.regions).filter(([, v]) => v > 0);
+  const m = day(k).meds;
+  return `<div class="topbar"><button class="ic" data-act="back" aria-label="Zurück">‹</button><h1>Abend-Check</h1><span class="muted">${esc(fmtDate(k))}</span></div>
+  <section class="card">
+    ${scale("itch", "Wie stark war der Juckreiz heute insgesamt?", "0 keiner", "10 unerträglich")}
+    ${scale("skin", "Wie war die Haut heute (Rötung, Schuppung)?", "0 ruhig", "10 sehr aktiv")}
+    ${yn("scratchBlood", "Hast du dich blutig gekratzt?")}
+    ${yn("sleepBad", "Juckreiz hat den Schlaf gestört?")}
+    <div class="field"><div class="label">Geraucht heute?</div><div class="togs">${[["none", "Nein"], ["cigar", "Zigarre"], ["cigarette", "Zigarette"]].map(([v, l]) => `<button class="tog ${a.smoke === v ? "on" : ""}" data-act="set" data-k="smoke" data-v="${v}"><span>${l}</span></button>`).join("")}</div></div>
+    <div class="field"><div class="label">Stress heute: <b>${a.stress}</b> von 10</div><input type="range" min="0" max="10" step="1" value="${a.stress}" id="stress" data-bind="stress" aria-label="Stress"></div>
+  </section>
+  <section class="card">
+    <h2>Wo war der Juckreiz am stärksten?</h2>
+    <p class="muted small">Stelle antippen: 1 leicht, 2 mittel, 3 stark, 4x aus.</p>
+    <div class="maps"><div><div class="mapl">Vorne</div>${bodyMap("f", a.regions)}</div><div><div class="mapl">Hinten</div>${bodyMap("b", a.regions)}</div></div>
+    <div class="chips">${sel.length ? sel.map(([id, v]) => `<span class="chip l${v}">${esc(REGION_LABEL[id])} ${v}</span>`).join("") : `<span class="muted">Noch keine Stelle gewählt.</span>`}</div>
+    <p class="muted small">Links und rechts beziehen sich auf deinen Körper.</p>
+  </section>
+  <section class="card">
+    <h2>Medikamente heute</h2>
+    <div class="label">${esc(mname("sk"))}</div>
+    <div class="togs"><button class="tog ${m.skM ? "on" : ""}" data-act="med" data-m="skM" data-keep="1"><span>Morgens</span></button><button class="tog ${m.skN ? "on" : ""}" data-act="med" data-m="skN" data-keep="1"><span>Mittags</span></button><button class="tog ${m.skE ? "on" : ""}" data-act="med" data-m="skE" data-keep="1"><span>Abends</span></button></div>
+    <div class="stepper"><span>${esc(mname("ah"))}</span><div><button class="ic" data-act="medn" data-m="allegra" data-d="-1" data-keep="1">−</button><b>${m.allegra || 0}</b><button class="ic" data-act="medn" data-m="allegra" data-d="1" data-keep="1">+</button></div></div>
+    <div class="stepper"><span>Eincremen</span><div><button class="ic" data-act="medn" data-m="creme" data-d="-1" data-keep="1">−</button><b>${m.creme || 0}</b><button class="ic" data-act="medn" data-m="creme" data-d="1" data-keep="1">+</button></div></div>
+    <div class="togs one"><button class="tog ${m.enstilar ? "on" : ""}" data-act="med" data-m="enstilar" data-keep="1"><span>${esc(mname("fo"))}</span></button></div>
+    <div class="label">Nebenwirkungen der Tabletten</div>
+    <div class="togs">${gi.map(g => `<button class="tog ${a.gi.includes(g) ? "on" : ""}" data-act="gi" data-g="${esc(g)}"><span>${esc(g)}</span></button>`).join("")}</div>
+  </section>
+  <section class="card">
+    <label class="label" for="note">Notiz (Auffälligkeiten, besondere Auslöser)</label>
+    <textarea id="note" rows="3" data-bind="note" placeholder="z. B. Geschäftsessen, wenig geschlafen, neue Creme">${esc(a.note)}</textarea>
+  </section>
+  <div class="stickybar"><button class="btn" data-act="abendSave">Speichern</button></div>`;
+}
+function openAbend() {
+  const c = day(ui.date).check;
+  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none" }
+    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none" };
+  location.hash = "abend";
+}
+
+/* ---------- Essen ---------- */
+function itemRow(i, opts = {}) {
+  return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>
+  <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
+  ${i.why ? `<span class="why">${esc(i.why)}</span>` : ""}</div>
+  ${opts.gramField ? `<input class="gin" inputmode="numeric" aria-label="Gramm" value="${i.g ?? ""}" data-act-input="draftG" data-id="${i.id}" placeholder="g">` : ""}
+  ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
+}
+
+function viewEssen() {
+  const k = ui.date, d = day(k), s = daySummary(k);
+  if (!ui.slot) ui.slot = autoSlot();
+  const draft = ui.draft;
+  return `${dateNav()}
+  <section class="card">
+    <h2>Was hast du gegessen oder getrunken?</h2>
+    <div class="togs four">${SLOTS.map(sl => `<button class="tog ${ui.slot === sl ? "on" : ""}" data-act="slot" data-s="${sl}"><span>${sl}</span></button>`).join("")}</div>
+    <label class="label" for="mealText">Freitext, mit Komma getrennt</label>
+    <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 2 Eier, 1 Vollkornbrötchen, Kaffee, 200 g Skyr">${esc(ui.draftText)}</textarea>
+    <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
+  </section>
+  ${draft ? `<section class="card"><h2>Auswertung</h2>
+    ${draft.map(i => itemRow(i, { gramField: true, del: "draftDel" })).join("")}
+    ${draft.some(i => i.src === "unknown") ? `<div class="note"><strong>Nicht erkannt:</strong> ${esc(draft.filter(i => i.src === "unknown").map(i => i.name).join(", "))}. Diese Einträge werden als unklar gespeichert. <button class="link" data-act="askClaude">Für Claude kopieren</button></div>` : ""}
+    <p class="muted small">Mengen sind Schätzwerte, die Gramm-Zahl lässt sich ändern. Bewertung: ${draft.filter(i => i.r === "r").length} rot, ${draft.filter(i => i.r === "y").length} gelb, ${draft.filter(i => i.r === "g").length} grün.</p>
+    ${draft.some(i => (i.tags || []).includes("juice")) ? `<p class="warn">${esc(NOTE_BILASTIN)}</p>` : ""}
+    <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
+  <section class="card">
+    <div class="row between"><h2>Tagebuch</h2><span class="muted">${s.kcal} kcal · ${Math.round(s.prot)} g Protein</span></div>
+    ${d.meals.length ? d.meals.map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i)).join("")}</div>`).join("")
+      : `<p class="muted">Für diesen Tag ist noch nichts eingetragen.</p>`}
+  </section>`;
+}
+
+function parseDraft() {
+  const t = ui.draftText.trim();
+  if (!t) { toast("Bitte erst etwas eintragen"); return; }
+  ui.draft = parseMeal(t);
+  render();
+}
+function saveDraft() {
+  if (!ui.draft || !ui.draft.length) return;
+  day(ui.date).meals.push({ id: uid(), slot: ui.slot || autoSlot(), t: Date.now(), items: ui.draft });
+  ui.draft = null; ui.draftText = ""; save(); toast("Gespeichert"); render();
+}
+
+/* ---------- Scanner ---------- */
+let camStream = null, scanTimer = null, detector = null;
+function stopScan() { ui.scanning = false; clearTimeout(scanTimer); if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } }
+
+async function startScan() {
+  ui.scanErr = ""; ui.scanProduct = null; ui.scanManual = false;
+  if (!("BarcodeDetector" in window)) { ui.scanErr = "Dieser Browser hat keinen Barcode-Scanner. In Chrome auf Android funktioniert er. Alternativ die Zahl unter dem Strichcode eintippen."; render(); return; }
+  try {
+    const fm = await BarcodeDetector.getSupportedFormats();
+    detector = new BarcodeDetector({ formats: fm.filter(f => ["ean_13", "ean_8", "upc_a", "upc_e"].includes(f)) });
+  } catch (e) { detector = new BarcodeDetector(); }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch (e) { ui.scanErr = "Kein Kamerazugriff. In den Browser-Einstellungen die Kamera für diese Seite erlauben oder die Nummer eintippen."; render(); return; }
+  ui.scanning = true; render();
+  const v = $("#cam"); v.srcObject = camStream; try { await v.play(); } catch (e) { /* weiter */ }
+  const tick = async () => {
+    if (!ui.scanning) return;
+    try { const codes = await detector.detect(v); for (const c of codes) if (validEAN(c.rawValue)) { if (navigator.vibrate) navigator.vibrate(60); onCode(c.rawValue); return; } } catch (e) { /* Frame noch nicht bereit */ }
+    scanTimer = setTimeout(tick, 160);
+  };
+  tick();
+}
+
+async function onCode(code) {
+  stopScan(); ui.scanBusy = true; ui.scanErr = ""; render();
+  try {
+    const p = await lookupOFF(code);
+    if (p.notFound) { ui.scanProduct = { p, ev: null }; ui.scanErr = ""; }
+    else { ui.scanProduct = { p, ev: evalProduct(p), grams: p.serving || 100 }; S.scanHistory = [{ code, name: p.name, brand: p.brand, r: ui.scanProduct.ev.r }, ...S.scanHistory.filter(h => h.code !== code)].slice(0, 12); save(); }
+  } catch (e) { ui.scanErr = "Keine Verbindung zu Open Food Facts. Prüfe das Netz und versuche es erneut."; }
+  ui.scanBusy = false; render();
+}
+
+function manualProduct(form) {
+  const num = id => { const v = parseFloat(($(id, form).value || "").replace(",", ".")); return isNaN(v) ? null : v; };
+  const bev = $("#mBev", form).checked, alc = $("#mAlc", form).checked;
+  const p = { code: ui.scanProduct?.p?.code || "manuell", name: $("#mName", form).value.trim() || "Eigenes Produkt", brand: "", qty: "", serving: null, kcal: num("#mKcal"), sugar: num("#mSugar"), sat: num("#mSat"), prot: num("#mProt"), fiber: num("#mFiber"), fat: null, salt: null, nova: parseInt($("#mNova", form).value, 10) || null, cats: bev ? ["en:beverages"] : [], allergens: [], ing: "", alcohol: alc ? 5 : 0, img: "" };
+  ui.scanProduct = { p, ev: evalProduct(p), grams: 100 }; ui.scanManual = false; render();
+}
+
+function viewScan() {
+  const sp = ui.scanProduct;
+  let main = "";
+  if (ui.scanning) {
+    main = `<div class="camwrap"><video id="cam" playsinline muted></video><div class="frame"></div></div><p class="muted center">Strichcode ins Rechteck halten. Es erkennt automatisch.</p><button class="btn ghost" data-act="scanStop">Abbrechen</button>`;
+  } else if (ui.scanBusy) {
+    main = `<div class="busy"><span class="spin"></span> Produkt wird gesucht…</div>`;
+  } else if (sp && sp.p.notFound && !ui.scanManual) {
+    main = `<section class="card"><h2>Nicht in Open Food Facts</h2><p>Zum Code ${esc(sp.p.code)} gibt es keinen Eintrag. Du kannst die Werte vom Etikett abtippen und trotzdem bewerten.</p><div class="actions"><button class="btn" data-act="manualOpen">Werte eintragen</button><button class="btn ghost" data-act="scanReset">Anderes Produkt</button></div></section>`;
+  } else if (ui.scanManual) {
+    main = `<form class="card" id="mform"><h2>Werte pro 100 g oder 100 ml</h2>
+      <label class="label" for="mName">Name</label><input id="mName" type="text" placeholder="Produktname">
+      <div class="grid2">
+      <div><label class="label" for="mKcal">kcal</label><input id="mKcal" inputmode="decimal"></div>
+      <div><label class="label" for="mSugar">Zucker g</label><input id="mSugar" inputmode="decimal"></div>
+      <div><label class="label" for="mSat">Ges. Fett g</label><input id="mSat" inputmode="decimal"></div>
+      <div><label class="label" for="mProt">Protein g</label><input id="mProt" inputmode="decimal"></div>
+      <div><label class="label" for="mFiber">Ballaststoffe g</label><input id="mFiber" inputmode="decimal"></div>
+      <div><label class="label" for="mNova">Verarbeitung</label><select id="mNova"><option value="">weiß ich nicht</option><option value="1">kaum (NOVA 1)</option><option value="3">verarbeitet (3)</option><option value="4">ultra-verarbeitet (4)</option></select></div></div>
+      <label class="check"><input type="checkbox" id="mBev"> Ist ein Getränk</label>
+      <label class="check"><input type="checkbox" id="mAlc"> Enthält Alkohol</label>
+      <div class="actions"><button class="btn" type="submit">Bewerten</button><button class="btn ghost" type="button" data-act="scanReset">Abbrechen</button></div></form>`;
+  } else if (sp && sp.ev) {
+    const { p, ev } = sp;
+    const item = productToItem(p, ev, sp.grams);
+    const chip = (l, v, u) => v == null ? "" : `<span class="chip">${l} ${fmtNum(v)}${u || ""}</span>`;
+    main = `<section class="card result r-${ev.r}">
+      <div class="prodhead">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy">` : ""}<div><h2>${esc(p.name)}</h2><span class="muted">${esc(p.brand)} ${esc(p.qty)}</span></div></div>
+      <div class="bigl r-${ev.r}"><span class="lamp big r-${ev.r}"></span><div><strong>${ev.r === "g" ? "Grün: passt" : ev.r === "y" ? "Gelb: in Maßen" : ev.r === "r" ? "Rot: besser meiden" : "Unklar: Daten fehlen"}</strong><div class="muted">pro 100 g bzw. 100 ml</div></div></div>
+      <ul class="reasons">${ev.reasons.map(x => `<li class="${x.k}">${esc(x.t)}</li>`).join("")}</ul>
+      <div class="chips">${chip("kcal", p.kcal)}${chip("Zucker", p.sugar, " g")}${chip("ges. Fett", p.sat, " g")}${chip("Protein", p.prot, " g")}${chip("Ballast.", p.fiber, " g")}${p.nova ? `<span class="chip">NOVA ${p.nova}</span>` : ""}</div>
+      ${ev.notes.map(n => `<p class="note">${esc(n)}</p>`).join("")}
+    </section>
+    <section class="card"><h2>Zum Tagebuch</h2>
+      <div class="grid2"><div><label class="label" for="sg">Menge in g oder ml</label><input id="sg" inputmode="numeric" value="${sp.grams}" data-bind="scanGrams"></div>
+      <div><label class="label" for="ss">Mahlzeit</label><select id="ss" data-bind="slot">${SLOTS.map(sl => `<option ${(ui.slot || autoSlot()) === sl ? "selected" : ""}>${sl}</option>`).join("")}</select></div></div>
+      <p class="muted small" id="scanKcal">${item.kcal != null ? item.kcal + " kcal, " + fmtNum(item.p) + " g Protein bei dieser Menge" : "Keine kcal-Angabe vorhanden"}</p>
+      <div class="actions"><button class="btn" data-act="scanAdd">Hinzufügen</button><button class="btn ghost" data-act="scanReset">Nächstes Produkt</button></div>
+    </section>`;
+  } else {
+    main = `<section class="card center"><h2>Lebensmittel prüfen</h2><p class="muted">Strichcode scannen und sofort sehen, ob es grün, gelb oder rot ist.</p><button class="btn big" data-act="scanStart">Kamera starten</button>
+      ${ui.scanErr ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}</section>`;
+  }
+  const manual = !ui.scanning ? `<section class="card"><label class="label" for="ean">Nummer unter dem Strichcode</label><div class="inl"><input id="ean" inputmode="numeric" maxlength="14" placeholder="z. B. 4056489012345" value="${esc(ui.eanText)}" data-bind="ean"><button class="btn small" data-act="eanGo">Suchen</button></div></section>` : "";
+  const hist = (!ui.scanning && !sp && S.scanHistory.length) ? `<section class="card"><h2>Zuletzt geprüft</h2>${S.scanHistory.map(h => `<button class="hist" data-act="hist" data-c="${esc(h.code)}">${dot(h.r)}<span>${esc((h.brand ? h.brand + " " : "") + h.name)}</span></button>`).join("")}</section>` : "";
+  return `<div class="topbar"><h1>Scanner</h1></div>${ui.scanErr && sp ? `<p class="warn">${esc(ui.scanErr)}</p>` : ""}${main}${manual}${hist}`;
+}
