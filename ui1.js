@@ -236,8 +236,9 @@ function viewEssen() {
     <h2>Was hast du gegessen oder getrunken?</h2>
     <div class="togs four">${SLOTS.map(sl => `<button class="tog ${ui.slot === sl ? "on" : ""}" data-act="slot" data-s="${sl}"><span>${sl}</span></button>`).join("")}</div>
     <div class="label">Uhrzeit</div>${timeField("mealTime", ui.mealTime)}
-    <label class="label" for="mealText">Freitext, mit Komma getrennt</label>
-    <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 2 Eier, 1 Vollkornbrötchen, Kaffee, 200 g Skyr">${esc(ui.draftText)}</textarea>
+    <label class="label" for="mealText">Was und wie viel? Mit Komma getrennt</label>
+    <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 3 Roggenbrötchen, 2 Teller Gulaschsuppe, 200 g Skyr">${esc(ui.draftText)}</textarea>
+    <p class="muted small">Die Menge schreibst du einfach davor: "3 Roggenbrötchen", "2 Teller Gulaschsuppe", "200 g Skyr", "1 Glas Milch", "halber Teller Chili", "große Portion Reis". Nach "Auswerten" kannst du Menge und Einheit in jeder Zeile noch ändern.</p>
     <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
   </section>
   ${ui.pick ? pickBox() : ""}
