@@ -4,8 +4,8 @@
 /* ---------- Rezepte ---------- */
 function viewRezeptList() {
   const f = ui.recipeFilter;
-  const filters = [["alle", "Alle"], ["unterwegs", "Supermarkt"], ["vorbereiten", "Vorbereiten"], ["warm", "Zuhause"], ["besteck", "Ohne Besteck"]];
-  const list = RECIPES.filter(r => f === "alle" || (f === "besteck" ? r.tags.includes("ohne Besteck") : r.kind === f));
+  const filters = [["alle", "Alle"], ["unterwegs", "Supermarkt"], ["vorbereiten", "Vorbereiten"], ["warm", "Zuhause"], ["restaurant", "Restaurant und Hotel"], ["besteck", "Ohne Besteck"], ["biz", "Geschäftlich"]];
+  const list = RECIPES.filter(r => f === "alle" || (f === "besteck" ? r.tags.includes("ohne Besteck") : f === "biz" ? (r.kind === "unterwegs" || r.kind === "restaurant" || r.tags.includes("Geschäftlich")) : r.kind === f));
   return `<div class="chips scrollx">${filters.map(([id, l]) => `<button class="chip btnchip ${f === id ? "on" : ""}" data-act="rf" data-f="${id}">${l}</button>`).join("")}</div>
   <p class="muted small">Alle Angaben sind Näherungswerte pro Portion. Tabletten, die zur Mahlzeit gehören, nicht auf nüchternen Magen nehmen.</p>
   ${list.map(r => `<details class="card recipe"><summary><span class="lamp r-${r.r}"></span><div class="rs"><strong>${esc(r.title)}</strong><span class="muted small">${esc(r.when)} · ca. ${r.k} kcal · ${r.p} g Protein</span></div></summary>
