@@ -132,6 +132,10 @@ function viewEinstellungen() {
     <label class="label" for="pu">Adresse dieser App</label><input id="pu" type="url" value="${esc(pr.appUrl || location.href.replace(/#.*$/, ""))}" data-bind="pappurl">
     <p class="muted small">Zuverlässig auf Android ist ein täglicher Kalender-Alarm. Die Datei öffnest du in der Kalender-App, der Eintrag wiederholt sich täglich und führt direkt zum Abend-Check.</p>
     <button class="btn" data-act="ics">Täglichen Kalender-Alarm laden</button></section>
+  <section class="card"><h2>Eigene Lebensmittel und Zuordnungen</h2>
+    <p class="muted small">Beim Eintragen über "ändern" oder "zuordnen" angelegt. Die App erkennt sie beim nächsten Mal von selbst.</p>
+    ${(S.profile.custom || []).length ? S.profile.custom.map(x => `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="muted small">${x.kcal} kcal pro 100 g, ${esc(x.unit)} = ${x.portion} g</span></div><button class="ic" data-act="custDel" data-n="${esc(x.name)}" aria-label="Löschen">×</button></div>`).join("") : `<p class="muted">Noch keine eigenen Lebensmittel.</p>`}
+    <p class="muted small">${Object.keys(S.profile.alias || {}).length} gemerkte Zuordnungen. <button class="link" data-act="aliasClear">Alle löschen</button></p></section>
   <section class="card"><h2>Daten sichern</h2>
     <p class="muted small">Alle Daten liegen nur auf diesem Handy. Mache regelmäßig eine Sicherung.</p>
     <div class="actions"><button class="btn" data-act="backup">Sicherung speichern</button><label class="btn ghost filebtn">Sicherung laden<input type="file" accept="application/json,.json" id="restore" hidden></label></div>
@@ -203,6 +207,21 @@ document.addEventListener("click", async e => {
     case "draftClear": ui.draft = null; render(); break;
     case "draftDel": ui.draft = ui.draft.filter(i => i.id !== el.dataset.id); if (!ui.draft.length) ui.draft = null; render(); break;
     case "draftSave": saveDraft(); break;
+    case "pick": { const it = ui.draft.find(x => x.id === el.dataset.id); if (it) { ui.pick = { id: it.id, q: it.key ? it.key.split(" ").pop() : "", creating: false, name: it.name }; render(); } break; }
+    case "pickClose": ui.pick = null; render(); break;
+    case "pickSet": { const it = ui.draft.find(x => x.id === ui.pick.id), food = FOODS.find(f => f.name === el.dataset.n); if (it && food) { applyFood(it, food); toast("Zugeordnet: " + food.name); } ui.pick = null; render(); break; }
+    case "newFood": ui.pick.creating = true; render(); break;
+    case "nfSave": {
+      const it = ui.draft.find(x => x.id === ui.pick.id), num = id => parseFloat(($(id).value || "").replace(",", "."));
+      const name = $("#nfName").value.trim(), portion = num("#nfPortion"), kcalU = num("#nfKcal"), protU = num("#nfProt") || 0;
+      if (!it || !name || !(portion > 0) || !(kcalU >= 0)) { toast("Bitte Name, Gewicht und kcal eintragen"); break; }
+      if (FOODS.some(f => f.name.toLowerCase() === name.toLowerCase())) { toast("Den Namen gibt es schon, bitte aus der Liste wählen"); break; }
+      const nf = { name, r: $("#nfR").value, unit: $("#nfUnit").value, portion, kcal: Math.round(kcalU * 100 / portion * 10) / 10, p: Math.round(protU * 100 / portion * 10) / 10, why: "Eigener Eintrag" };
+      S.profile.custom.push(nf); const food = foodFromCustom(nf); FOODS.push(food);
+      applyFood(it, food); ui.pick = null; save(); toast("Gespeichert: " + name); render(); break;
+    }
+    case "custDel": { const n = el.dataset.n; S.profile.custom = S.profile.custom.filter(x => x.name !== n); const ix = FOODS.findIndex(f => f.custom && f.name === n); if (ix >= 0) FOODS.splice(ix, 1); Object.keys(S.profile.alias).forEach(k => { if (S.profile.alias[k] === n) delete S.profile.alias[k]; }); save(); render(); break; }
+    case "aliasClear": S.profile.alias = {}; save(); toast("Gemerkte Zuordnungen gelöscht"); render(); break;
     case "mealDel": day(k).meals = day(k).meals.filter(m => m.id !== el.dataset.id); save(); render(); break;
     case "askClaude": copyText("Bitte bewerte diese Lebensmittel für mich (Psoriasis" + (S.profile.therapy ? ", " + S.profile.therapy : "") + ", Ziel: Gewicht senken, viel Protein). Gib pro Lebensmittel kcal und Protein pro Portion sowie Ampel grün/gelb/rot mit kurzer Begründung:\n" + ui.draft.filter(i => i.src === "unknown").map(i => "- " + i.text).join("\n")); break;
     case "histDel": { const c = el.dataset.c; S.scanHistory = S.scanHistory.filter(h => h.code !== c); delete S.offCache[c]; if (ui.scanProduct && ui.scanProduct.p.code === c) ui.scanProduct = null; save(); toast("Entfernt"); render(); break; }
@@ -254,18 +273,14 @@ document.addEventListener("click", async e => {
 
 document.addEventListener("input", e => {
   const t = e.target;
-  if (t.dataset.actInput === "draftG") {
-    const it = ui.draft.find(i => i.id === t.dataset.id), g = parseFloat(t.value.replace(",", "."));
-    if (it && g > 0) {
-      const food = FOODS.find(f => f.name === it.name);
-      if (food) { const upd = foodItem(food, g, it.text); Object.assign(it, { g: upd.g, kcal: upd.kcal, p: upd.p }); }
-      else if (it.kcal != null && it.g) { const f = g / it.g; it.kcal = Math.round(it.kcal * f); it.p = it.p != null ? r1(it.p * f) : null; it.g = Math.round(g); }
-      else it.g = Math.round(g);
-    }
+  if (t.dataset.actInput === "draftQ") {
+    const it = ui.draft && ui.draft.find(x => x.id === t.dataset.id), v = parseFloat(t.value.replace(",", "."));
+    if (it && v > 0) { if (it.food) { it.qty = v; recalcItem(it); } else { it.qty = v; it.g = Math.round(v); } }
     return;
   }
   switch (t.dataset.bind) {
     case "mealText": ui.draftText = t.value; break;
+    case "pickq": ui.pick.q = t.value; { const el = $("#picklist"); if (el) el.innerHTML = pickList(); } break;
     case "mealTime": ui.mealTime = t.value; ui.mealTimeAuto = false; break;
     case "epTime": ui.epTime = t.value; break;
     case "dbq": ui.dbq = t.value; { const el = $("#dblist"); if (el) el.innerHTML = dbList(); } break;
@@ -288,7 +303,11 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   if (e.target.dataset.bind === "slot") { ui.slot = e.target.value; if (ui.mealTimeAuto) { ui.mealTime = defaultMealTime(ui.slot, ui.date); const el = $("#st"); if (el) el.value = ui.mealTime; } }
   if (e.target.dataset.bind === "scanUnit" && ui.scanProduct) { ui.scanProduct.unit = e.target.value; ui.scanProduct.amount = e.target.value === "g" ? 100 : 1; render(); }
-  if (e.target.dataset.actInput === "draftG") render();
+  if (e.target.dataset.actInput === "draftQ") render();
+  if (e.target.dataset.actChange === "draftU") {
+    const it = ui.draft.find(x => x.id === e.target.dataset.id), food = it && FOODS.find(f => f.name === it.food);
+    if (it && food) { it.mode = e.target.value; it.qty = it.mode === "g" ? Math.round(it.g) : Math.round(it.g / food.portion * 10) / 10; recalcItem(it); render(); }
+  }
 });
 
 function restoreBackup(e) {

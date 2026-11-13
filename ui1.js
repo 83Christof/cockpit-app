@@ -3,7 +3,7 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null, pick: null
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -70,7 +70,7 @@ function viewHeute() {
     <div class="row between"><h2>Essens-Ampel</h2><span class="muted">${s.items.length} Einträge</span></div>
     ${s.light ? `<div class="bigl r-${s.light}"><span class="lamp big r-${s.light}"></span><div><strong>${lightTxt[s.light]}</strong><div class="muted">${s.c.g || 0} grün · ${s.c.y || 0} gelb · ${s.c.r || 0} rot${s.unknown ? " · " + s.unknown + " ungeprüft" : ""}</div></div></div>`
       : `<p class="muted">Noch nichts eingetragen. Scanne ein Lebensmittel oder tippe, was du gegessen hast.</p>`}
-    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${[...new Set(reds.map(i => i.name))].map(nm => { const n = reds.filter(i => i.name === nm).length, i = reds.find(x => x.name === nm); return `<li>${esc(nm)}${n > 1 ? " (" + n + "x)" : ""}: ${esc(i.why)}${i.why.endsWith(".") ? "" : "."}${ALT[nm] ? " Besser: " + esc(ALT[nm]) + "." : ""}</li>`; }).join("")}</ul></div>` : ""}
+    ${reds.length ? `<div class="redlist"><strong>Das könnte den Juckreiz fördern:</strong><ul>${[...new Set(reds.map(i => i.name))].map(nm => { const n = reds.filter(i => i.name === nm).length, i = reds.find(x => x.name === nm); return `<li>${esc(nm)}${n > 1 ? " (" + n + "x)" : ""}: ${esc(i.why)}${i.why.endsWith(".") ? "" : "."}${ALT[i.food || nm] ? " Besser: " + esc(ALT[i.food || nm]) + "." : ""}</li>`; }).join("")}</ul></div>` : ""}
     ${d.meals.length ? `<div class="todaylist"><div class="label">Heute eingetragen (× löscht den Eintrag)</div>${d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="muted small">${esc(ml.slot)}${ml.time ? " · " + esc(ml.time) + " Uhr" : ""}</div>${ml.items.map(i => itemRow(i, { del: "itemDel", compact: true, dup: dups.has(i.id) })).join("")}</div>`).join("")}${dups.size ? `<button class="btn small ghost" data-act="dupClean">Doppelte entfernen (${dups.size})</button>` : ""}</div>` : ""}
     <div class="meter"><div class="row between"><span>Protein</span><b>${Math.round(s.prot)} / ${pt} g</b></div>${bar(s.prot, pt, "prot")}</div>
     <div class="meter"><div class="row between"><span>Kalorien (Richtwert)</span><b class="${s.kcal > kmax ? "over" : ""}">${s.kcal} / ${kmax} kcal</b></div>${bar(s.kcal, kmax, s.kcal > kmax ? "over" : "")}</div>
@@ -173,7 +173,7 @@ function openAbend() {
 function itemRow(i, opts = {}) {
   return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>${opts.dup ? " <span class=\"pill r-y\">doppelt?</span>" : ""}
   <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
-  ${i.why && !opts.compact ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && !opts.compact && typeof ALT !== "undefined" && ALT[i.name] ? `<span class="alt">Besser: ${esc(ALT[i.name])}</span>` : ""}</div>
+  ${i.why && !opts.compact ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && !opts.compact && typeof ALT !== "undefined" && ALT[i.food || i.name] ? `<span class="alt">Besser: ${esc(ALT[i.food || i.name])}</span>` : ""}</div>
   ${opts.gramField ? `<input class="gin" inputmode="numeric" aria-label="Gramm" value="${i.g ?? ""}" data-act-input="draftG" data-id="${i.id}" placeholder="g">` : ""}
   ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
 }
@@ -185,6 +185,47 @@ function timeField(bind, value) {
   return `<div class="timef">${col("h", 1, h, "Stunde")}<span class="tsep">:</span>${col("m", 5, m, "Minute")}<button class="btn small ghost" data-act="tnow" data-b="${bind}">Jetzt</button></div>`;
 }
 function ensureMealTime() { if (!ui.slot) ui.slot = autoSlot(); if (!ui.mealTime) { ui.mealTime = defaultMealTime(ui.slot, ui.date); ui.mealTimeAuto = true; } }
+
+/* Zeile in der Auswertung vor dem Speichern: Menge und Einheit änderbar, Lebensmittel änderbar */
+function draftRow(i) {
+  const food = i.food ? FOODS.find(f => f.name === i.food) : null;
+  const unitSel = food ? `<select class="usel" aria-label="Einheit" data-act-change="draftU" data-id="${i.id}"><option value="p" ${i.mode !== "g" ? "selected" : ""}>${esc(food.unit)} (${food.portion} g)</option><option value="g" ${i.mode === "g" ? "selected" : ""}>g</option></select>` : `<span class="muted small">g</span>`;
+  const qty = food ? (i.qty ?? 1) : (i.mode === "g" ? i.qty : (i.g ?? ""));
+  const alt = i.r === "r" && typeof ALT !== "undefined" && ALT[i.food || i.name] ? `<span class="alt">Besser: ${esc(ALT[i.food || i.name])}</span>` : "";
+  return `<div class="item draft"><span class="lamp r-${i.r}"></span><div class="im"><div><strong>${esc(i.name)}</strong> <button class="link" data-act="pick" data-id="${i.id}">${food ? "ändern" : "zuordnen"}</button></div>
+    <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
+    <span class="why">${esc(i.why)}</span>${alt}
+    <div class="qrow"><input class="gin" inputmode="decimal" aria-label="Menge" value="${qty ?? ""}" data-act-input="draftQ" data-id="${i.id}">${unitSel}</div></div>
+    <button class="ic" data-act="draftDel" data-id="${i.id}" aria-label="Entfernen">×</button></div>`;
+}
+function pickList() {
+  let q = normTxt(ui.pick.q || "");
+  const find = x => FOODS.filter(f => !x || f.nsyn.some(s => s.includes(x)) || normTxt(f.name).includes(x));
+  let rows = find(q);
+  while (!rows.length && q.length > 4) { q = q.slice(0, -1); rows = find(q); }   // z. B. "kartoffelgratin" findet "kartoffel"
+  rows = rows.slice(0, 15);
+  if (!rows.length) return `<p class="muted">Kein Treffer. Mit "Neues Lebensmittel anlegen" kannst du es selbst erfassen.</p>`;
+  return rows.map(f => `<button class="hist" data-act="pickSet" data-n="${esc(f.name)}">${dot(f.r)}<span class="im"><strong>${esc(f.name)}</strong><span class="muted small">${f.kcal} kcal pro 100 g, ${esc(f.unit)} = ${f.portion} g</span></span></button>`).join("");
+}
+function pickBox() {
+  const it = ui.draft && ui.draft.find(i => i.id === ui.pick.id);
+  if (!it) return "";
+  if (ui.pick.creating) {
+    return `<section class="card" id="pickbox"><h2>Neues Lebensmittel</h2>
+    <label class="label" for="nfName">Name</label><input id="nfName" value="${esc(ui.pick.name || "")}">
+    <label class="label" for="nfR">Bewertung</label><select id="nfR"><option value="g">Passt (grün)</option><option value="y" selected>In Maßen (gelb)</option><option value="r">Meiden (rot)</option></select>
+    <div class="grid2"><div><label class="label" for="nfUnit">Einheit</label><select id="nfUnit">${["Portion", "Teller", "Stück", "Scheibe", "Glas", "Tasse", "Schüssel"].map(x => `<option>${x}</option>`).join("")}</select></div>
+    <div><label class="label" for="nfPortion">Gewicht einer Einheit (g)</label><input id="nfPortion" inputmode="decimal" value="300"></div>
+    <div><label class="label" for="nfKcal">kcal pro Einheit</label><input id="nfKcal" inputmode="decimal"></div>
+    <div><label class="label" for="nfProt">Protein pro Einheit (g)</label><input id="nfProt" inputmode="decimal"></div></div>
+    <p class="muted small">Schätzwerte reichen. Das Lebensmittel wird gemerkt und beim nächsten Mal automatisch erkannt.</p>
+    <div class="actions"><button class="btn" data-act="nfSave">Speichern</button><button class="btn ghost" data-act="pickClose">Abbrechen</button></div></section>`;
+  }
+  return `<section class="card" id="pickbox"><h2>Lebensmittel wählen</h2><p class="muted small">Für "${esc(it.text)}". Die Auswahl wird gemerkt.</p>
+    <input id="pickq" type="search" placeholder="Suchen, z. B. Gulaschsuppe" value="${esc(ui.pick.q)}" data-bind="pickq" autocomplete="off">
+    <div id="picklist">${pickList()}</div>
+    <div class="actions"><button class="btn small ghost" data-act="newFood">Neues Lebensmittel anlegen</button><button class="btn small ghost" data-act="pickClose">Abbrechen</button></div></section>`;
+}
 
 function viewEssen() {
   const k = ui.date, d = day(k), s = daySummary(k);
@@ -199,10 +240,11 @@ function viewEssen() {
     <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 2 Eier, 1 Vollkornbrötchen, Kaffee, 200 g Skyr">${esc(ui.draftText)}</textarea>
     <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
   </section>
+  ${ui.pick ? pickBox() : ""}
   ${draft ? `<section class="card"><h2>Auswertung</h2>
-    ${draft.map(i => itemRow(i, { gramField: true, del: "draftDel" })).join("")}
-    ${draft.some(i => i.src === "unknown") ? `<div class="note"><strong>Nicht erkannt:</strong> ${esc(draft.filter(i => i.src === "unknown").map(i => i.name).join(", "))}. Diese Einträge werden als unklar gespeichert. <button class="link" data-act="askClaude">Für Claude kopieren</button></div>` : ""}
-    <p class="muted small">Mengen sind Schätzwerte, die Gramm-Zahl lässt sich ändern. Bewertung: ${draft.filter(i => i.r === "r").length} rot, ${draft.filter(i => i.r === "y").length} gelb, ${draft.filter(i => i.r === "g").length} grün.</p>
+    ${draft.map(draftRow).join("")}
+    ${draft.some(i => i.src === "unknown") ? `<div class="note"><strong>Nicht erkannt:</strong> ${esc(draft.filter(i => i.src === "unknown").map(i => i.name).join(", "))}. Tippe bei dem Eintrag auf "zuordnen", sonst wird er als unklar gespeichert. <button class="link" data-act="askClaude">Für Claude kopieren</button></div>` : ""}
+    <p class="muted small">Mengen sind Schätzwerte. Menge und Einheit (z. B. Teller, Stück) lassen sich ändern, über "ändern" wählst du ein anderes Lebensmittel. Bewertung: ${draft.filter(i => i.r === "r").length} rot, ${draft.filter(i => i.r === "y").length} gelb, ${draft.filter(i => i.r === "g").length} grün.</p>
     ${draft.some(i => (i.tags || []).includes("juice")) ? `<p class="warn">${esc(NOTE_BILASTIN)}</p>` : ""}
     <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
   <section class="card">

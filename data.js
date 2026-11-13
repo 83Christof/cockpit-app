@@ -41,13 +41,13 @@ Cola|cola,coca cola,pepsi,limo,limonade,fanta,sprite,eistee,ice tea,softdrink,en
 Cola Zero|cola zero,cola light,zero,light getränk,diet cola|1|0|y|330|Dose|upf|Zuckerfrei, aber Süßstoffe; Datenlage fehlt, in Maßen
 Apfelsaft|apfelsaft,orangensaft,saft,multivitaminsaft,traubensaft,grapefruitsaft,fruchtsaft|46|0.1|y|200|Glas|sugar juice|Viel Zucker. Saft senkt die Aufnahme mancher Antihistaminika (Abstand zur Einnahme beachten)
 Apfelschorle|apfelschorle,saftschorle,schorle|22|0|y|300|Glas|sugar juice|Zuckerärmer, Abstand zu Antihistaminika beachten
-Bier|bier,pils,weizen,weißbier,radler,alkoholfreies bier,helles,export|43|0.5|r|500|Glas|alc gluten|Alkohol: Risikofaktor, bei Fumarsäureestern zusätzlich Magen-Darm-Belastung
+Bier|bier,pils,weizen,weißbier,radler,helles,export|43|0.5|r|500|Glas|alc gluten|Alkohol: Risikofaktor, bei Fumarsäureestern zusätzlich Magen-Darm-Belastung
 Wein|wein,rotwein,weißwein,weisswein,sekt,prosecco,champagner,aperol,spritz|80|0.1|r|150|Glas|alc|Alkohol: Risikofaktor, bei Fumarsäureestern zusätzlich Magen-Darm-Belastung
 Schnaps|schnaps,whisky,wodka,gin,rum,likör,cocktail,jägermeister,korn,obstler|230|0|r|40|Portion|alc|Spirituosen sind bei Fumarsäureestern ausdrücklich zu meiden
 Vollkornbrot|vollkornbrot,körnerbrot,schwarzbrot,roggenbrot,pumpernickel,mehrkornbrot,dinkelvollkornbrot|215|8|g|50|Scheibe|gluten|Ballaststoffe, sättigt
 Brot|brot,mischbrot,graubrot,bauernbrot,toast,toastbrot,weißbrot,baguette|250|8|y|50|Scheibe|gluten|Helles Brot hat weniger Ballaststoffe
 Vollkornbrötchen|vollkornbrötchen,vollkornbroetchen,körnerbrötchen,dinkelbrötchen|235|9|g|70|Stück|gluten|Ballaststoffe
-Brötchen|brötchen,broetchen,semmel,weizenbrötchen,laugenbrötchen,laugenbrezel,brezel,breze|275|9|y|60|Stück|gluten|Helles Weizenmehl, schnell verdaulich
+Brötchen|brötchen,broetchen,semmel,schrippe,wecken,weckle,kaisersemmel,weizenbrötchen,laugenbrötchen,laugenbrezel,brezel,breze|275|9|y|60|Stück|gluten|Helles Weizenmehl, schnell verdaulich
 Croissant|croissant,butterhörnchen,plunderstück,plunder,berliner,donut,krapfen,nussecke|400|7|r|60|Stück|gluten sugar satfat upf|Zucker und gesättigtes Fett
 Kuchen|kuchen,torte,gebäck,muffin,keks,kekse,cookie,waffel,brownie,apfelstrudel,streuselkuchen|420|5|r|80|Stück|gluten sugar satfat upf|Zucker und gesättigtes Fett
 Haferflocken|haferflocken,porridge,haferbrei,overnight oats,oats|370|13|g|50|Portion|gluten|Ballaststoffe und Protein (Hafer enthält teils Gluten-Spuren)
@@ -59,7 +59,7 @@ Vollkornnudeln|vollkornnudeln,vollkornpasta,vollkornspaghetti|150|6|g|220|Portio
 Quinoa|quinoa,hirse,hirsebrei,couscous,bulgur,buchweizen,polenta,amaranth,dinkel|120|4.5|g|180|Portion|gluten|Ballaststoffe, Vollkorn-Beilage
 Sushi|sushi,maki,nigiri,sashimi,poke bowl|150|6|y|250|Portion|fish|Fisch gut, weißer Reis und süße Soßen in Maßen
 Pesto|pesto,pasta soße,sahnesoße,käsesoße,bechamel|450|4|y|20|EL|satfat|Fettreich, kleine Menge
-Kartoffeln|kartoffeln,kartoffel,salzkartoffeln,pellkartoffeln,ofenkartoffel,bratkartoffeln,kartoffelpüree|85|2|g|250|Portion|nightshade|Neutral (Nachtschatten nur bei persönlichem Trigger)
+Kartoffeln|kartoffeln,kartoffel,salzkartoffeln,pellkartoffeln,ofenkartoffel,kartoffelpüree|85|2|g|250|Portion|nightshade|Neutral (Nachtschatten nur bei persönlichem Trigger)
 Süßkartoffel|süßkartoffel,suesskartoffel|86|1.6|g|200|Portion||Ballaststoffe
 Pommes|pommes,pommes frites,fritten,kroketten,rösti,reibekuchen|300|3.5|r|150|Portion|fried upf satfat nightshade|Frittiert, verarbeitet
 Linsen|linsen,rote linsen,linsensuppe,linseneintopf,dal|116|9|g|200|Portion|veg|Protein und Ballaststoffe
@@ -71,7 +71,7 @@ Fisch|fisch,kabeljau,seelachs,pangasius,zander,scholle,garnelen,shrimps,meeresfr
 Fischstäbchen|fischstäbchen,backfisch,fish and chips|220|12|y|120|Portion|fried upf|Paniert und verarbeitet
 Hähnchenbrust|hähnchenbrust,hähnchen,huhn,hühnchen,chicken,pute,putenbrust,putenschnitzel,geflügel|110|23|g|150|Portion||Mageres Protein
 Hähnchenschnitzel|schnitzel,hähnchenschnitzel,cordon bleu,nuggets,chicken nuggets,chickenburger,crispy chicken|240|15|r|150|Portion|fried upf satfat|Paniert und frittiert
-Rindfleisch|rindfleisch,steak,rindersteak,hackfleisch,hack,rinderhack,gulasch,braten,schweinebraten,schweinefleisch,lamm,frikadelle,hacksteak|200|20|y|150|Portion|redmeat satfat|Rotes Fleisch mit gesättigtem Fett, in Maßen (mager wählen)
+Rindfleisch|rindfleisch,rind,schwein,schweinefleisch,steak,rindersteak,hackfleisch,hack,rinderhack,gulasch,braten,schweinebraten,schweinefleisch,lamm,frikadelle,hacksteak|200|20|y|150|Portion|redmeat satfat|Rotes Fleisch mit gesättigtem Fett, in Maßen (mager wählen)
 Wurst|wurst,salami,bratwurst,currywurst,wiener,würstchen,leberwurst,mettwurst,leberkäse,bockwurst,fleischwurst,speck,bacon,mortadella,teewurst,landjäger,kabanos,chorizo,pepperoni|320|14|r|60|Portion|procmeat satfat upf|Verarbeitetes Fleisch, viel gesättigtes Fett
 Schinken|schinken,kochschinken,putenaufschnitt,hähnchenaufschnitt,geflügelwurst,aufschnitt|110|18|y|40|Scheibe|procmeat upf|Verarbeitet, aber mager: in Maßen
 Burger|burger,cheeseburger,hamburger,big mac,whopper,mcdouble,mcchicken|260|13|r|200|Stück|fastfood fried satfat upf gluten|Fast Food: gesättigte Fette, Zucker in Brötchen und Soßen
@@ -92,7 +92,7 @@ Beeren|beeren,erdbeeren,himbeeren,heidelbeeren,blaubeeren,brombeeren,johannisbee
 Trockenfrüchte|trockenfrüchte,rosinen,datteln,feigen,trockenobst,fruchtriegel,fruchtschnitte|300|3|y|30|Portion|sugar fruit|Konzentrierter Zucker, kleine Menge
 Gemüse|gemüse,brokkoli,blumenkohl,karotte,karotten,möhren,zucchini,spinat,salat,blattsalat,kopfsalat,rucola,gurke,kohl,rotkohl,weißkohl,fenchel,spargel,pilze,champignons,zwiebel,lauch,sellerie,kohlrabi,rosenkohl,mangold,rohkost,gemüsesticks,ofengemüse,gemüsepfanne,gemüsesuppe|35|2.5|g|200|Portion|veg|Ballaststoffe, Vitamine, kaum Kalorien
 Tomate|tomate,tomaten,cherrytomaten,tomatensoße,tomatensauce,ketchup,passierte tomaten|20|1|g|120|Portion|nightshade veg|Verarbeitet (Soße, Dose, Ketchup) meist unkritisch. Nachtschatten wird in Umfragen manchmal als Trigger genannt, Studienbeleg fehlt
-Paprika|paprika,aubergine,chili|30|1.5|g|120|Stück|nightshade veg|Nachtschatten: nur bei persönlichem Trigger relevant
+Paprika|paprika,aubergine|30|1.5|g|120|Stück|nightshade veg|Nachtschatten: nur bei persönlichem Trigger relevant
 Avocado|avocado|160|2|g|100|Stück|veg|Ungesättigte Fette, energiedicht
 Oliven|oliven|145|1|g|30|Portion||Mediterran, salzig
 Salat mit Dressing|caesar salat,salatteller,gemischter salat,bunter salat,hähnchensalat,thunfischsalat mit,wrap salat|120|6|g|300|Portion|veg|Mit leichtem Dressing gut
@@ -108,6 +108,40 @@ Gemüsesticks mit Hummus|gemüsesticks hummus,hummus gemüse|90|3|g|200|Portion|
 Pfannkuchen|pfannkuchen,eierkuchen,crêpe,crepes,palatschinken|200|6|y|120|Stück|gluten sugar|Mit Zucker/Nutella rot, mit Quark und Beeren gelb
 Reiswaffel|reiswaffel,reiswaffeln,reiscracker,knäckebrot,knäcke|380|8|y|10|Stück|gluten|Wenig Ballaststoffe, schnell verdaulich
 Fruchtmus|quetschie,fruchtquetschie,fruchtmus,apfelmus|60|0.3|y|100|Portion|sugar fruit|Zuckerhaltig, ganze Frucht besser
+Gulaschsuppe|gulaschsuppe,gulasch suppe,ungarische gulaschsuppe,gulaschsuppe gemischt|90|6|y|400|Teller|redmeat nightshade satfat|Rindfleisch und Paprika, oft fettreich. Mit viel Gemüse und ohne Sahne besser
+Kartoffelsuppe|kartoffelsuppe,kartoffeleintopf|70|2.5|g|400|Teller|nightshade|Neutral, mit Wurst eher gelb
+Erbsensuppe|erbsensuppe,erbseneintopf|75|5|g|400|Teller|veg|Hülsenfrüchte und Ballaststoffe
+Hühnersuppe|hühnersuppe,huehnersuppe,hühnerbrühe,nudelsuppe,hühnereintopf|45|4|g|400|Teller||Leicht und eiweißhaltig
+Tomatensuppe|tomatensuppe|55|1.5|g|400|Teller|nightshade|Verarbeitete Tomaten sind für dich okay, mit Sahne etwas fettreicher
+Kürbissuppe|kürbissuppe,kuerbissuppe,karottensuppe,möhrensuppe|55|1.5|g|400|Teller|veg|Gemüsebasis
+Eintopf|eintopf,gemüseeintopf,bohneneintopf,graupeneintopf,steckrübeneintopf|80|4|g|400|Teller|veg|Meist gemüsereich, mit Wurst eher gelb
+Chili con Carne|chili con carne,chili|110|8|y|400|Teller|redmeat nightshade spicy|Rotes Fleisch, scharf, Tomaten
+Spaghetti Bolognese|spaghetti bolognese,bolognese,nudeln mit hackfleischsoße|140|7|y|400|Teller|gluten redmeat nightshade|Weißmehlnudeln und Hackfleisch, Vollkornnudeln besser
+Lasagne|lasagne,lasagna,cannelloni,nudelauflauf|165|8|y|350|Portion|gluten satfat dairy redmeat|Viel Käse und Fett
+Maultaschen|maultaschen,ravioli,tortellini,gnocchi|165|7|y|250|Portion|gluten|Weißmehlteig, Füllung unterschiedlich
+Spätzle|spätzle,spaetzle,käsespätzle,kasespatzle|165|5.5|y|250|Portion|gluten|Weißmehl, Käsespätzle zusätzlich fettreich
+Knödel|knödel,semmelknödel,kartoffelknödel,klöße,kloesse,serviettenknödel|150|4|y|150|Stück|gluten|Weißbrot oder Kartoffelmasse
+Rouladen|rouladen,rinderrouladen,kohlrouladen,roulade|170|18|y|200|Portion|redmeat|Rotes Fleisch, mageres Stück wählen
+Frikadelle|frikadelle,bulette,fleischpflanzerl,hacksteak,hackbraten,fleischküchle|230|15|y|90|Stück|redmeat satfat|Rotes Fleisch, fettreich
+Bratkartoffeln|bratkartoffeln,röstkartoffeln,kartoffelpuffer|150|3|y|250|Portion|fried nightshade|Gebraten, mit Fett
+Kartoffelsalat|kartoffelsalat|120|2|y|200|Portion|nightshade|Mit Mayonnaise oder Öl, in Maßen
+Krautsalat|krautsalat,coleslaw,weißkrautsalat|90|1.5|y|150|Portion|veg|Meist mit Zucker und Öl
+Nudelsalat|nudelsalat|170|4|y|200|Portion|gluten|Mayonnaise und Weißmehl
+Fleischsalat|fleischsalat,wurstsalat,eiersalat|250|6|r|60|Portion|procmeat satfat upf|Mayonnaise, verarbeitet
+Hotdog|hotdog,hot dog|250|10|r|150|Stück|fastfood procmeat gluten|Wurst und Weißmehl
+Roggenbrötchen|roggenbrötchen,roggenbroetchen,roggenmischbrötchen,mehrkornbrötchen,mehrkornbroetchen,kürbiskernbrötchen,sonnenblumenbrötchen|250|8|y|70|Stück|gluten|Roggenmisch hat mehr Ballaststoffe als Weizen, ist aber meist kein Vollkorn
+Käsebrötchen|käsebrötchen,kaesebroetchen,käsestange,käsebrezel|290|11|y|80|Stück|gluten dairy satfat|Weizen plus Käse
+Hähnchenkeule|hähnchenkeule,haehnchenkeule,backhendl,grillhähnchen,hendl,brathähnchen|200|18|y|200|Portion|satfat|Mit Haut fettreicher
+Baked Beans|baked beans,bohnen in tomatensoße|95|5|y|200|Portion|sugar nightshade|Mit Zucker und Tomatensoße
+Risotto|risotto,reispfanne,paella|150|4|y|300|Portion||Weißer Reis, Fett je nach Rezept
+Curry|curry,currygericht,thai curry,gemüsecurry|120|5|y|350|Portion|spicy|Kokosmilch fettreich, oft scharf
+Pudding|pudding,vanillepudding,schokopudding|120|3|y|150|Portion|sugar dairy|Zucker
+Milchreis|milchreis|130|3.5|y|250|Portion|sugar dairy|Meist gezuckert
+Kakao|kakao,trinkschokolade,schokomilch,milchshake|75|3|y|250|Glas|sugar dairy|Gezuckert
+Malzbier|malzbier,spezi,mezzo mix|40|0.4|r|330|Dose|sugar sugarDrink|Zuckergetränk
+Alkoholfreies Bier|alkoholfreies bier,alkoholfrei bier,bier alkoholfrei,radler alkoholfrei|25|0.3|y|500|Glas|sugar gluten|Kein Alkohol, aber Zucker und Gluten
+Smoothie|smoothie|55|0.8|y|250|Glas|sugar juice|Viel Fruchtzucker, Saft-Regel beachten
+Sauerkraut|sauerkraut,blaukraut|25|1.2|g|150|Portion|veg|Fermentiertes Gemüse, kaum Kalorien
 `;
 
 function parseFoods(txt) {

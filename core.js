@@ -18,7 +18,7 @@ const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 /* ---------- Speicher ---------- */
 const KEY = "haut-cockpit-v1";
 function defaults() {
-  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {} };
+  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, custom: [], alias: {}, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {} };
 }
 function loadState() {
   try {
@@ -87,41 +87,61 @@ function ahLimit() { return medCfg().ahMax || null; }
 const normTxt = s => s.toLowerCase().replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "ss").replace(/[^a-z0-9% ]/g, " ").replace(/\s+/g, " ").trim();
 FOODS.forEach(f => { f.nsyn = [...new Set(f.syn.map(normTxt))].filter(Boolean); });
 
-const NUMWORDS = { ein: 1, eine: 1, einen: 1, einem: 1, zwei: 2, drei: 3, vier: 4, fuenf: 5, funf: 5, sechs: 6, halbe: 0.5, halbes: 0.5, halber: 0.5 };
+/* Eigene Lebensmittel (auf dem Gerät gespeichert) */
+if (!Array.isArray(S.profile.custom)) S.profile.custom = [];
+if (!S.profile.alias || typeof S.profile.alias !== "object") S.profile.alias = {};
+function foodFromCustom(x) {
+  return { name: x.name, syn: [x.name.toLowerCase()], nsyn: [normTxt(x.name)], kcal: x.kcal, p: x.p, r: x.r, portion: x.portion || 100, unit: x.unit || "Portion", tags: [], why: x.why || "Eigener Eintrag", custom: true };
+}
+S.profile.custom.forEach(x => FOODS.push(foodFromCustom(x)));
+
+const NUMWORDS = { ein: 1, eine: 1, einen: 1, einem: 1, zwei: 2, drei: 3, vier: 4, fuenf: 5, funf: 5, sechs: 6, sieben: 7, acht: 8, halbe: 0.5, halbes: 0.5, halber: 0.5, anderthalb: 1.5 };
 const UNIT_G = { g: 1, gr: 1, gramm: 1, kg: 1000, ml: 1, l: 1000, el: null, tl: 5, tasse: 200, tassen: 200, glas: 200, glaeser: 200, dose: 330, becher: 150, handvoll: 25, schale: 150 };
 
 function splitMeals(text) {
   return text.replace(/\n/g, ",").split(/,|;|\+|\bund\b|\bmit\b|\bsowie\b|\//i).map(s => s.trim()).filter(Boolean);
 }
 
+const UNIT_RE = "x|g|gr|gramm|kg|ml|l|el|tl|scheibe|scheiben|stk|stück|stueck|stücke|stuecke|portion|portionen|tasse|tassen|glas|gläser|glaeser|dose|dosen|becher|handvoll|schale|schalen|teller|tellern|schüssel|schüsseln|schuessel|schuesseln|kelle|kellen|krug|flasche|flaschen";
+const GRAM_UNITS = ["g", "gr", "gramm", "kg", "ml", "l", "tl"];
+const canonUnit = u => { u = normTxt(u || ""); return /^(stk|stuc|stue)/.test(u) ? "stueck" : u.slice(0, 4); };
+
 function parseToken(tok) {
   let t = tok.replace(/½/g, "0.5").replace(/¼/g, "0.25").trim();
-  let qty = 1, unit = null, rest = t, grams = null;
-  const unitRe = "x|g|gr|gramm|kg|ml|l|el|tl|scheibe|scheiben|stk|stück|stueck|portion|portionen|tasse|tassen|glas|gläser|glaeser|dose|dosen|becher|handvoll|schale|stücke|stuecke";
-  let m = t.match(new RegExp("^(\\d+(?:[.,]\\d+)?|ein|eine|einen|einem|zwei|drei|vier|fünf|fuenf|sechs|halbe|halbes|halber)\\s*(" + unitRe + ")?\\.?\\s+(.+)$", "i"));
+  let qty = 1, unit = null, rest = t, factor = 1;
+  let m = t.match(new RegExp("^(\\d+(?:[.,]\\d+)?|ein|eine|einen|einem|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|halbe|halbes|halber|anderthalb)\\s*(" + UNIT_RE + ")?\\.?\\s+(.+)$", "i"));
   if (m) {
     const n = m[1].toLowerCase();
     qty = NUMWORDS[n] ?? parseFloat(n.replace(",", "."));
     unit = (m[2] || "").toLowerCase() || null; rest = m[3];
   } else {
-    m = t.match(new RegExp("^(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*(" + unitRe + ")\\.?$", "i"));
+    m = t.match(new RegExp("^(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*(" + UNIT_RE + ")\\.?$", "i"));
     if (m) { rest = m[1]; qty = parseFloat(m[2].replace(",", ".")); unit = m[3].toLowerCase(); }
   }
-  return { qty: isFinite(qty) ? qty : 1, unit, rest: rest.trim() };
+  rest = rest.replace(/\b(teller|tellern|schüssel\w*|schuessel\w*|portion\w*)\b/gi, " ").replace(/\b(klein\w*|groß\w*|gross\w*|halb\w*)\b/gi, w => { const l = w.toLowerCase(); factor *= l.startsWith("klein") ? 0.7 : l.startsWith("halb") ? 0.5 : 1.3; return " "; }).replace(/\s+/g, " ").trim();
+  return { qty: isFinite(qty) ? qty : 1, unit, rest, factor };
 }
 
+/* Zuordnung Text -> Lebensmittel: gemerkte Zuordnung zuerst, dann ganzes Wort (mit Plural), dann Wortende eines zusammengesetzten Worts */
 function matchFood(txt) {
-  const n = " " + normTxt(txt) + " ";
+  const n = normTxt(txt);
+  const al = S.profile.alias[n];
+  if (al) { const f = FOODS.find(x => x.name === al); if (f) return f; }
+  const words = n.split(" ").filter(Boolean), padded = " " + n + " ";
   let best = null, bestScore = 0;
   for (const f of FOODS) {
     for (const s of f.nsyn) {
-      let hit = false;
-      if (s.length <= 3) hit = n.includes(" " + s + " ");
-      else hit = n.includes(" " + s) || (s.length >= 5 && n.includes(s));
-      if (hit) {
-        const sc = s.length + (n.includes(" " + s + " ") ? 0.5 : 0);
-        if (sc > bestScore) { best = f; bestScore = sc; }
+      let sc = 0;
+      if (s.includes(" ")) { if (padded.includes(" " + s + " ")) sc = s.length + 6; }
+      else {
+        const plurals = s.length <= 3 ? [""] : ["", "e", "n", "en", "s", "er"];
+        for (const w of words) {
+          if (plurals.some(p => w === s + p)) sc = Math.max(sc, s.length + 4);
+          else if (s.length >= 4 && w.length > s.length && w.endsWith(s)) sc = Math.max(sc, s.length + 1);
+          else if (s.length >= 6 && w.startsWith(s) && w.length - s.length <= 3) sc = Math.max(sc, s.length - 1);
+        }
       }
+      if (sc > bestScore) { best = f; bestScore = sc; }
     }
   }
   return best;
@@ -137,23 +157,49 @@ function watchHit(item) {
   return hits;
 }
 
-function foodItem(food, g, text) {
-  const item = { id: uid(), name: food.name, text, g: Math.round(g), kcal: Math.round(food.kcal * g / 100), p: r1(food.p * g / 100), r: food.r, tags: [...food.tags], why: food.why, src: "db" };
+/* mode "p": qty Einheiten (Stück, Teller, Portion), mode "g": qty Gramm */
+/* Anzeigename: bei Sammelbegriffen steht das getippte Wort dabei, z. B. "Gemüse (Brokkoli)" */
+function foodLabel(food, rest) {
+  const k = normTxt(rest || ""), f = normTxt(food.name);
+  if (!k || f.includes(k) || (k.startsWith(f) && k.length - f.length <= 2)) return food.name;
+  const r = rest.trim();
+  if (k.includes(f)) return r.charAt(0).toUpperCase() + r.slice(1);
+  return food.name + " (" + r.charAt(0).toUpperCase() + r.slice(1) + ")";
+}
+function foodItem(food, g, text, qty, mode, key, rest) {
+  const item = { id: uid(), name: foodLabel(food, rest), food: food.name, rest: rest || "", text, key, qty, mode, g: Math.round(g), kcal: Math.round(food.kcal * g / 100), p: r1(food.p * g / 100), r: food.r, tags: [...food.tags], why: food.why, src: "db" };
   const w = watchHit(item);
   if (w.length) { item.watch = w; if (item.r === "g") item.r = "y"; item.why += " Auf deiner Beobachtungsliste: " + w.join(", ") + "."; }
   return item;
 }
+function recalcItem(it) {
+  const food = FOODS.find(f => f.name === it.food); if (!food) return;
+  const g = it.mode === "g" ? it.qty : it.qty * food.portion;
+  it.g = Math.round(g); it.kcal = Math.round(food.kcal * g / 100); it.p = r1(food.p * g / 100);
+}
+/* anderes Lebensmittel zuordnen, Menge bleibt, Zuordnung wird gemerkt */
+function applyFood(it, food) {
+  const mode = it.mode || "p", qty = it.qty > 0 ? it.qty : 1, id = it.id, key = it.key;
+  const nu = foodItem(food, mode === "g" ? qty : qty * food.portion, it.text, qty, mode, key, it.rest);
+  Object.keys(it).forEach(k => delete it[k]);
+  Object.assign(it, nu, { id });
+  if (key) { S.profile.alias[key] = food.name; save(); }
+}
 
 function parseMeal(text) {
   return splitMeals(text).map(tok => {
-    const { qty, unit, rest } = parseToken(tok);
+    const { qty, unit, rest, factor } = parseToken(tok);
+    const key = normTxt(rest);
     const food = matchFood(rest);
-    if (!food) return { id: uid(), name: rest || tok, text: tok, g: null, kcal: null, p: null, r: "u", tags: [], why: "Nicht in der Datenbank. Beim Hinzufügen unbewertet, bitte mit Claude prüfen.", src: "unknown" };
-    let g;
-    if (unit && ["g", "gr", "gramm", "kg", "ml", "l", "tl", "tasse", "tassen", "glas", "glaeser", "gläser", "dose", "dosen", "becher", "handvoll", "schale"].includes(unit) && UNIT_G[unit.replace("ä", "ae")] != null) g = qty * UNIT_G[unit.replace("ä", "ae")];
-    else if (unit === "el") g = qty * (food.unit === "EL" ? food.portion : 15);
-    else g = qty * food.portion;
-    return foodItem(food, g, tok);
+    const isG = unit && GRAM_UNITS.includes(unit);
+    if (!food) return { id: uid(), name: rest || tok, rest: rest || "", text: tok, key, food: null, qty: isG ? (unit === "kg" || unit === "l" ? qty * 1000 : unit === "tl" ? qty * 5 : qty) : qty * factor, mode: isG ? "g" : "p", g: null, kcal: null, p: null, r: "u", tags: [], why: "Nicht in der Datenbank. Über zuordnen ein Lebensmittel wählen oder neu anlegen.", src: "unknown" };
+    let g, mode = "p", q = qty * factor;
+    if (isG) { g = qty * ({ kg: 1000, l: 1000, tl: 5 }[unit] || 1); mode = "g"; q = g; }
+    else if (unit && canonUnit(unit) === canonUnit(food.unit)) g = q * food.portion;
+    else if (unit === "el") { g = q * (food.unit === "EL" ? food.portion : 15); mode = "g"; q = g; }
+    else if (unit && ({ tasse: 200, tassen: 200, glas: 200, glaeser: 200, gläser: 200, dose: 330, dosen: 330, becher: 150, handvoll: 25, schale: 150, schalen: 150, krug: 500, flasche: 500, flaschen: 500, kelle: 150, kellen: 150 })[unit]) { g = q * ({ tasse: 200, tassen: 200, glas: 200, glaeser: 200, gläser: 200, dose: 330, dosen: 330, becher: 150, handvoll: 25, schale: 150, schalen: 150, krug: 500, flasche: 500, flaschen: 500, kelle: 150, kellen: 150 })[unit]; mode = "g"; q = g; }
+    else g = q * food.portion;
+    return foodItem(food, g, tok, q, mode, key, rest);
   });
 }
 
