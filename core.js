@@ -99,7 +99,8 @@ const NUMWORDS = { ein: 1, eine: 1, einen: 1, einem: 1, zwei: 2, drei: 3, vier: 
 const UNIT_G = { g: 1, gr: 1, gramm: 1, kg: 1000, ml: 1, l: 1000, el: null, tl: 5, tasse: 200, tassen: 200, glas: 200, glaeser: 200, dose: 330, becher: 150, handvoll: 25, schale: 150 };
 
 function splitMeals(text) {
-  return text.replace(/\n/g, ",").split(/,|;|\+|\bund\b|\bmit\b|\bsowie\b|\//i).map(s => s.trim()).filter(Boolean);
+  // Ein Komma zwischen Ziffern ist ein Dezimalkomma ("0,5 l", "1,5 Teller") und trennt keine Einträge
+  return text.replace(/\n/g, ";").split(/(?<!\d),|,(?!\d)|;|\+|\bund\b|\bmit\b|\bsowie\b|\//i).map(s => s.trim()).filter(Boolean);
 }
 
 const UNIT_RE = "x|g|gr|gramm|kg|ml|l|el|tl|scheibe|scheiben|stk|stück|stueck|stücke|stuecke|portion|portionen|tasse|tassen|glas|gläser|glaeser|dose|dosen|becher|handvoll|schale|schalen|teller|tellern|schüssel|schüsseln|schuessel|schuesseln|kelle|kellen|krug|flasche|flaschen";
@@ -158,6 +159,15 @@ function watchHit(item) {
 }
 
 /* mode "p": qty Einheiten (Stück, Teller, Portion), mode "g": qty Gramm */
+/* Flüssigkeiten werden in ml angezeigt */
+const LIQ_UNITS = ["Glas", "Dose", "Tasse", "Flasche"];
+const isLiquid = f => !!f && (LIQ_UNITS.includes(f.unit) || f.name === "Schnaps");
+const unitOfFood = f => isLiquid(f) ? "ml" : "g";
+function itemUnit(i) {
+  if (i.liq !== undefined) return i.liq ? "ml" : "g";
+  return unitOfFood(FOODS.find(x => x.name === (i.food || i.name)));
+}
+
 /* Anzeigename: bei Sammelbegriffen steht das getippte Wort dabei, z. B. "Gemüse (Brokkoli)" */
 function foodLabel(food, rest) {
   const k = normTxt(rest || ""), f = normTxt(food.name);
@@ -167,7 +177,7 @@ function foodLabel(food, rest) {
   return food.name + " (" + r.charAt(0).toUpperCase() + r.slice(1) + ")";
 }
 function foodItem(food, g, text, qty, mode, key, rest) {
-  const item = { id: uid(), name: foodLabel(food, rest), food: food.name, rest: rest || "", text, key, qty, mode, g: Math.round(g), kcal: Math.round(food.kcal * g / 100), p: r1(food.p * g / 100), r: food.r, tags: [...food.tags], why: food.why, src: "db" };
+  const item = { id: uid(), name: foodLabel(food, rest), food: food.name, rest: rest || "", text, key, qty, mode, g: Math.round(g), kcal: Math.round(food.kcal * g / 100), p: r1(food.p * g / 100), r: food.r, tags: [...food.tags], why: food.why, src: "db", liq: isLiquid(food) };
   const w = watchHit(item);
   if (w.length) { item.watch = w; if (item.r === "g") item.r = "y"; item.why += " Auf deiner Beobachtungsliste: " + w.join(", ") + "."; }
   return item;
@@ -321,7 +331,7 @@ function evalProduct(p) {
 
 function productToItem(p, ev, grams) {
   const g = grams || p.serving || 100;
-  return { id: uid(), name: (p.brand ? p.brand + " " : "") + p.name, text: "Scan " + p.code, g: Math.round(g), kcal: p.kcal != null ? Math.round(p.kcal * g / 100) : null, p: p.prot != null ? r1(p.prot * g / 100) : null, r: ev.r, tags: ev.tags, why: ev.reasons.filter(x => x.k === "neg").map(x => x.t).join(" ") || "Scan-Bewertung", src: "scan", code: p.code };
+  return { id: uid(), liq: p.cats.includes("en:beverages") || p.cats.includes("en:waters"), name: (p.brand ? p.brand + " " : "") + p.name, text: "Scan " + p.code, g: Math.round(g), kcal: p.kcal != null ? Math.round(p.kcal * g / 100) : null, p: p.prot != null ? r1(p.prot * g / 100) : null, r: ev.r, tags: ev.tags, why: ev.reasons.filter(x => x.k === "neg").map(x => x.t).join(" ") || "Scan-Bewertung", src: "scan", code: p.code };
 }
 
 
@@ -338,9 +348,10 @@ function unitOptions(p) {
   const bev = p.cats.includes("en:beverages") || p.cats.includes("en:waters");
   const o = [{ id: "g", label: bev ? "ml" : "g", g: 1 }];
   const q = parseQty(p.qty);
-  if (p.serving) o.push({ id: "portion", label: "Portion (" + Math.round(p.serving) + " g)", g: p.serving });
-  if (q.each) o.push({ id: "piece", label: "Stück (" + Math.round(q.each) + " g)", g: q.each });
-  if (q.total) o.push({ id: "pack", label: "Packung (" + Math.round(q.total) + " g)", g: q.total });
+  const gu = bev ? "ml" : "g";
+  if (p.serving) o.push({ id: "portion", label: "Portion (" + Math.round(p.serving) + " " + gu + ")", g: p.serving });
+  if (q.each) o.push({ id: "piece", label: "Stück (" + Math.round(q.each) + " " + gu + ")", g: q.each });
+  if (q.total) o.push({ id: "pack", label: (bev ? "Flasche/Dose (" : "Packung (") + Math.round(q.total) + " " + gu + ")", g: q.total });
   o.push({ id: "custom", label: "Stück (Gewicht selbst eintragen)", g: null });
   return o;
 }

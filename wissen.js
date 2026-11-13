@@ -19,7 +19,7 @@ function dbList() {
   let html = "", cur = "";
   rows.forEach(x => {
     if (x.r !== cur) { cur = x.r; html += `<h3 class="dbh">${dot(cur)} ${head[cur]}</h3>`; }
-    html += `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="why">${esc(x.why)}</span><span class="muted small">${x.kcal} kcal und ${fmtNum(x.p)} g Protein pro 100 g</span></div></div>`;
+    html += `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="why">${esc(x.why)}</span><span class="muted small">${x.kcal} kcal und ${fmtNum(x.p)} g Protein pro 100 ${unitOfFood(x)}</span></div></div>`;
   });
   return html;
 }

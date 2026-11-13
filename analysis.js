@@ -203,7 +203,7 @@ function claudeExport(n) {
     const d = S.days[k], c = d.check || {}, m = d.meds || {};
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + " " + v).join("; ") : "";
     const eps = (d.episodes || []).map(e => e.time + "=" + e.itch).join("; ");
-    const food = d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + "g" : ""} [${i.r}]`).join(", ")).join(" | ");
+    const food = d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + itemUnit(i) : ""} [${i.r}]`).join(", ")).join(" | ");
     lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? c.smoke : "nein"} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0}${pp(m.allegraP)} Creme ${m.creme || 0}${pp(m.cremeP)} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"} | Spitze ${(c.peak || []).join("/") || "-"} | Episoden ${eps || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
   });
   return lines.join("\n");

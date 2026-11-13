@@ -134,7 +134,7 @@ function viewEinstellungen() {
     <button class="btn" data-act="ics">Täglichen Kalender-Alarm laden</button></section>
   <section class="card"><h2>Eigene Lebensmittel und Zuordnungen</h2>
     <p class="muted small">Beim Eintragen über "ändern" oder "zuordnen" angelegt. Die App erkennt sie beim nächsten Mal von selbst.</p>
-    ${(S.profile.custom || []).length ? S.profile.custom.map(x => `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="muted small">${x.kcal} kcal pro 100 g, ${esc(x.unit)} = ${x.portion} g</span></div><button class="ic" data-act="custDel" data-n="${esc(x.name)}" aria-label="Löschen">×</button></div>`).join("") : `<p class="muted">Noch keine eigenen Lebensmittel.</p>`}
+    ${(S.profile.custom || []).length ? S.profile.custom.map(x => `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="muted small">${x.kcal} kcal pro 100 ${LIQ_UNITS.includes(x.unit) ? "ml" : "g"}, ${esc(x.unit)} = ${x.portion} ${LIQ_UNITS.includes(x.unit) ? "ml" : "g"}</span></div><button class="ic" data-act="custDel" data-n="${esc(x.name)}" aria-label="Löschen">×</button></div>`).join("") : `<p class="muted">Noch keine eigenen Lebensmittel.</p>`}
     <p class="muted small">${Object.keys(S.profile.alias || {}).length} gemerkte Zuordnungen. <button class="link" data-act="aliasClear">Alle löschen</button></p></section>
   <section class="card"><h2>Daten sichern</h2>
     <p class="muted small">Alle Daten liegen nur auf diesem Handy. Mache regelmäßig eine Sicherung.</p>

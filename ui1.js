@@ -172,7 +172,7 @@ function openAbend() {
 /* ---------- Essen ---------- */
 function itemRow(i, opts = {}) {
   return `<div class="item"><span class="lamp r-${i.r}"></span><div class="im"><strong>${esc(i.name)}</strong>${opts.dup ? " <span class=\"pill r-y\">doppelt?</span>" : ""}
-  <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
+  <span class="muted small">${i.g ? i.g + " " + itemUnit(i) : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
   ${i.why && !opts.compact ? `<span class="why">${esc(i.why)}</span>` : ""}${i.r === "r" && !opts.compact && typeof ALT !== "undefined" && ALT[i.food || i.name] ? `<span class="alt">Besser: ${esc(ALT[i.food || i.name])}</span>` : ""}</div>
   ${opts.gramField ? `<input class="gin" inputmode="numeric" aria-label="Gramm" value="${i.g ?? ""}" data-act-input="draftG" data-id="${i.id}" placeholder="g">` : ""}
   ${opts.del ? `<button class="ic" data-act="${opts.del}" data-id="${i.id}" aria-label="Entfernen">×</button>` : ""}</div>`;
@@ -189,11 +189,11 @@ function ensureMealTime() { if (!ui.slot) ui.slot = autoSlot(); if (!ui.mealTime
 /* Zeile in der Auswertung vor dem Speichern: Menge und Einheit änderbar, Lebensmittel änderbar */
 function draftRow(i) {
   const food = i.food ? FOODS.find(f => f.name === i.food) : null;
-  const unitSel = food ? `<select class="usel" aria-label="Einheit" data-act-change="draftU" data-id="${i.id}"><option value="p" ${i.mode !== "g" ? "selected" : ""}>${esc(food.unit)} (${food.portion} g)</option><option value="g" ${i.mode === "g" ? "selected" : ""}>g</option></select>` : `<span class="muted small">g</span>`;
+  const unitSel = food ? `<select class="usel" aria-label="Einheit" data-act-change="draftU" data-id="${i.id}"><option value="p" ${i.mode !== "g" ? "selected" : ""}>${esc(food.unit)} (${food.portion} ${unitOfFood(food)})</option><option value="g" ${i.mode === "g" ? "selected" : ""}>${unitOfFood(food)}</option></select>` : `<span class="muted small">g</span>`;
   const qty = food ? (i.qty ?? 1) : (i.mode === "g" ? i.qty : (i.g ?? ""));
   const alt = i.r === "r" && typeof ALT !== "undefined" && ALT[i.food || i.name] ? `<span class="alt">Besser: ${esc(ALT[i.food || i.name])}</span>` : "";
   return `<div class="item draft"><span class="lamp r-${i.r}"></span><div class="im"><div><strong>${esc(i.name)}</strong> <button class="link" data-act="pick" data-id="${i.id}">${food ? "ändern" : "zuordnen"}</button></div>
-    <span class="muted small">${i.g ? i.g + " g" : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
+    <span class="muted small">${i.g ? i.g + " " + itemUnit(i) : "Menge ?"}${i.kcal != null ? " · " + i.kcal + " kcal" : ""}${i.p ? " · " + fmtNum(i.p) + " g Protein" : ""}</span>
     <span class="why">${esc(i.why)}</span>${alt}
     <div class="qrow"><input class="gin" inputmode="decimal" aria-label="Menge" value="${qty ?? ""}" data-act-input="draftQ" data-id="${i.id}">${unitSel}</div></div>
     <button class="ic" data-act="draftDel" data-id="${i.id}" aria-label="Entfernen">×</button></div>`;
@@ -205,7 +205,7 @@ function pickList() {
   while (!rows.length && q.length > 4) { q = q.slice(0, -1); rows = find(q); }   // z. B. "kartoffelgratin" findet "kartoffel"
   rows = rows.slice(0, 15);
   if (!rows.length) return `<p class="muted">Kein Treffer. Mit "Neues Lebensmittel anlegen" kannst du es selbst erfassen.</p>`;
-  return rows.map(f => `<button class="hist" data-act="pickSet" data-n="${esc(f.name)}">${dot(f.r)}<span class="im"><strong>${esc(f.name)}</strong><span class="muted small">${f.kcal} kcal pro 100 g, ${esc(f.unit)} = ${f.portion} g</span></span></button>`).join("");
+  return rows.map(f => `<button class="hist" data-act="pickSet" data-n="${esc(f.name)}">${dot(f.r)}<span class="im"><strong>${esc(f.name)}</strong><span class="muted small">${f.kcal} kcal pro 100 ${unitOfFood(f)}, ${esc(f.unit)} = ${f.portion} ${unitOfFood(f)}</span></span></button>`).join("");
 }
 function pickBox() {
   const it = ui.draft && ui.draft.find(i => i.id === ui.pick.id);
@@ -295,7 +295,7 @@ async function startScan() {
 
 function qtyInfo(sp) {
   const g = spGrams(sp), it = productToItem(sp.p, sp.ev, g);
-  return Math.round(g) + " g insgesamt" + (it.kcal != null ? ", " + it.kcal + " kcal, " + fmtNum(it.p) + " g Protein" : ", keine kcal-Angabe vorhanden");
+  return Math.round(g) + (sp.p.cats.includes("en:beverages") || sp.p.cats.includes("en:waters") ? " ml" : " g") + " insgesamt" + (it.kcal != null ? ", " + it.kcal + " kcal, " + fmtNum(it.p) + " g Protein" : ", keine kcal-Angabe vorhanden");
 }
 function altInner(sp) {
   const a = sp.alt, ideas = localIdeas(sp.p, sp.ev);

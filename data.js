@@ -37,7 +37,7 @@ Milchkaffee|latte,latte macchiato,cappuccino,milchkaffee,flat white|55|3|y|250|T
 Kaffee|kaffee,espresso,filterkaffee,americano|2|0.1|g|200|Tasse|coffee|Bis ca. 3 Tassen unkritisch, Datenlage gemischt
 Tee|tee,kräutertee,gruener tee,grüner tee,pfefferminztee,früchtetee,schwarzer tee|1|0|g|250|Tasse||Ungesüßt gut
 Wasser|wasser,mineralwasser,sprudel,leitungswasser,schorle ungesüßt|0|0|g|250|Glas||Beste Wahl
-Cola|cola,coca cola,pepsi,limo,limonade,fanta,sprite,eistee,ice tea,softdrink,energy,energydrink,red bull,monster|42|0|r|330|Dose|sugar sugarDrink upf|Zuckergetränke: Zusammenhang mit schlechterem Therapieansprechen
+Cola|cola,coca cola,pepsi,limo,limonade,fanta,sprite,eistee,ice tea,softdrink|42|0|r|330|Dose|sugar sugarDrink upf|Zuckergetränke: Zusammenhang mit schlechterem Therapieansprechen
 Cola Zero|cola zero,cola light,zero,light getränk,diet cola|1|0|y|330|Dose|upf|Zuckerfrei, aber Süßstoffe; Datenlage fehlt, in Maßen
 Apfelsaft|apfelsaft,orangensaft,saft,multivitaminsaft,traubensaft,grapefruitsaft,fruchtsaft|46|0.1|y|200|Glas|sugar juice|Viel Zucker. Saft senkt die Aufnahme mancher Antihistaminika (Abstand zur Einnahme beachten)
 Apfelschorle|apfelschorle,saftschorle,schorle|22|0|y|300|Glas|sugar juice|Zuckerärmer, Abstand zu Antihistaminika beachten
@@ -142,6 +142,11 @@ Malzbier|malzbier,spezi,mezzo mix|40|0.4|r|330|Dose|sugar sugarDrink|Zuckergetr�
 Alkoholfreies Bier|alkoholfreies bier,alkoholfrei bier,bier alkoholfrei,radler alkoholfrei|25|0.3|y|500|Glas|sugar gluten|Kein Alkohol, aber Zucker und Gluten
 Smoothie|smoothie|55|0.8|y|250|Glas|sugar juice|Viel Fruchtzucker, Saft-Regel beachten
 Sauerkraut|sauerkraut,blaukraut|25|1.2|g|150|Portion|veg|Fermentiertes Gemüse, kaum Kalorien
+Monster Energy|monster,monster energy,monster energie|47|0|r|500|Dose|sugar sugarDrink upf|Zuckerhaltiger Energydrink, eine 500-ml-Dose hat etwa 55 g Zucker
+Monster Zero|monster zero,monster ultra,monster zero ultra,monster zero sugar|3|0|y|500|Dose|upf|Zuckerfrei, aber Süßstoffe und viel Koffein, in Maßen
+Red Bull|red bull,redbull,red bull energy|45|0|r|250|Dose|sugar sugarDrink upf|Zuckerhaltig, eine 250-ml-Dose hat etwa 27 g Zucker
+Red Bull Zero|red bull zero,redbull zero,red bull sugarfree,red bull sugar free|3|0|y|250|Dose|upf|Zuckerfrei, aber Süßstoffe und Koffein, in Maßen
+Energydrink|energydrink,energy drink,energy,rockstar,effect,flying horse|45|0|r|500|Dose|sugar sugarDrink upf|Zuckerhaltiger Energydrink
 `;
 
 function parseFoods(txt) {

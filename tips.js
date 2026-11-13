@@ -68,6 +68,9 @@ const MED_TIPS = [
 /* Bessere Alternativen für rot bewertete Lebensmittel (Text-Tagebuch) */
 const ALT = {
   "Cola": "Wasser, Mineralwasser mit Zitrone, ungesüßter Tee",
+  "Monster Energy": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
+  "Red Bull": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
+  "Energydrink": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
   "Bier": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
   "Wein": "Wasser, ungesüßter Tee, Kaffee ohne Zucker",
   "Schnaps": "Wasser, ungesüßter Tee",
