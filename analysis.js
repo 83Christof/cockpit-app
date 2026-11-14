@@ -117,6 +117,17 @@ function daypartStats(fromKey, toKey) {
   return DAYPARTS.map(([id, label]) => ({ id, label, peak: agg[id].peak, n: agg[id].eps.length, avg: mean(agg[id].eps) }));
 }
 
+const epStr = e => e.time + "=" + e.itch + ((e.regions || []).length ? " (" + e.regions.map(id => REGION_LABEL[id] || id).join(" + ") + ")" : "");
+
+/** Juckreiz-Einträge zwischendurch je Körperstelle */
+function episodeRegionStats(fromKey, toKey) {
+  const agg = {};
+  Object.keys(S.days).filter(k => k >= fromKey && k <= toKey).forEach(k => (S.days[k].episodes || []).forEach(e => (e.regions || []).forEach(id => {
+    agg[id] = agg[id] || { n: 0, sum: 0 }; agg[id].n++; agg[id].sum += e.itch;
+  })));
+  return Object.entries(agg).map(([id, a]) => ({ id, label: REGION_LABEL[id] || id, n: a.n, avg: a.sum / a.n })).sort((a, b) => b.n - a.n || b.avg - a.avg);
+}
+
 function regionStats(fromKey, toKey) {
   const agg = {};
   Object.keys(S.days).filter(k => k >= fromKey && k <= toKey).forEach(k => {
@@ -202,7 +213,7 @@ function claudeExport(n) {
   st.keys.forEach(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {};
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + " " + v).join("; ") : "";
-    const eps = (d.episodes || []).map(e => e.time + "=" + e.itch).join("; ");
+    const eps = (d.episodes || []).map(epStr).join("; ");
     const food = d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + itemUnit(i) : ""} [${i.r}]`).join(", ")).join(" | ");
     lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? c.smoke : "nein"} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0}${pp(m.allegraP)} Creme ${m.creme || 0}${pp(m.cremeP)} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"} | Spitze ${(c.peak || []).join("/") || "-"} | Episoden ${eps || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
   });
@@ -215,7 +226,7 @@ function csvExport() {
   const rows = Object.keys(S.days).sort().map(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k);
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + ":" + v).join("; ") : "";
-    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? c.smoke : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, (c.peak || []).join("/"), (d.episodes || []).map(e => e.time + "=" + e.itch).join("; "), d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || ""].map(q).join(";");
+    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? c.smoke : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, (c.peak || []).join("/"), (d.episodes || []).map(epStr).join("; "), d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || ""].map(q).join(";");
   });
   return "﻿" + head.join(";") + "\n" + rows.join("\n");
 }

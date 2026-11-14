@@ -3,7 +3,7 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null, pick: null
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null, pick: null, epRegions: {}, epMapOpen: false
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -81,8 +81,12 @@ function viewHeute() {
     <p class="muted small">Stärke antippen, wenn es gerade juckt. Die Uhrzeit wird mitgespeichert und später mit dem Essen verglichen.</p>
     <div class="scale">${[...Array(11).keys()].map(n => `<button class="sc s${n} ${ui.epItch === n ? "on" : ""}" data-act="epSet" data-v="${n}">${n}</button>`).join("")}</div>
     <div class="label">Uhrzeit</div>${timeField("epTime", ui.epTime || nowTime())}
+    <div class="label">Wo juckt es gerade?</div>
+    <button class="btn ghost small" data-act="epMap">${ui.epMapOpen ? "Körperkarte ausblenden" : "Körperstelle wählen"}</button>
+    ${ui.epMapOpen ? `<div class="maps"><div><div class="mapl">Vorne</div>${bodyMap("f", ui.epRegions, "epreg")}</div><div><div class="mapl">Hinten</div>${bodyMap("b", ui.epRegions, "epreg")}</div></div><p class="muted small">Stelle antippen, erneut tippen entfernt sie.</p>` : ""}
+    <div class="chips">${Object.keys(ui.epRegions).length ? Object.keys(ui.epRegions).map(id => `<span class="chip l1">${esc(REGION_LABEL[id] || id)}</span>`).join("") : `<span class="muted small">Keine Stelle gewählt (optional).</span>`}</div>
     <button class="btn wide" data-act="epAdd">Eintragen</button>
-    ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong></div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
+    ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong>${(e.regions || []).length ? `<span class="muted small">${esc(e.regions.map(id => REGION_LABEL[id] || id).join(", "))}</span>` : ""}</div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
   </section>
   <section class="card">
     <h2>Medikamente und Pflege</h2>
@@ -100,25 +104,37 @@ function viewHeute() {
 }
 
 /* ---------- Abend-Check ---------- */
-function bodyMap(view, regions) {
-  const f = view === "f";
-  const cls = id => "z l" + (regions[id] || 0);
-  const z = (id, x, y, w, h, rx = 10) => `<rect class="${cls(id)}" data-act="reg" data-id="${id}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"><title>${esc(REGION_LABEL[id])}</title></rect>`;
-  // Person links liegt von vorn rechts im Bild, von hinten links im Bild
-  const X = (xl, w) => f ? 200 - xl - w : xl;
-  const arm = (side, xl) => { // side L oder R; xl = Position für Person-links
-    const sx = side === "L" ? X(xl, 20) : X(200 - xl - 20, 20);
-    return [z("armO" + side, sx, 70, 20, 52, 9), z("armU" + side, sx + 2, 124, 17, 52, 8), z("hand" + side, sx, 178, 20, 26, 8)];
+/* Körperkarte: gerundete Gliedmaßen und Rumpf, Vorder- und Rückseite haben eigene Stellen (z. B. Oberschenkel vorne und hinten) */
+function capsule(x1, y1, r1, x2, y2, r2) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, f = n => n.toFixed(1);
+  const a = [x1 + nx * r1, y1 + ny * r1], b = [x2 + nx * r2, y2 + ny * r2], c = [x2 - nx * r2, y2 - ny * r2], d = [x1 - nx * r1, y1 - ny * r1];
+  return `M${f(a[0])} ${f(a[1])} L${f(b[0])} ${f(b[1])} A${r2} ${r2} 0 0 0 ${f(c[0])} ${f(c[1])} L${f(d[0])} ${f(d[1])} A${r1} ${r1} 0 0 0 ${f(a[0])} ${f(a[1])} Z`;
+}
+function bodyMap(view, regions, act = "reg") {
+  const f = view === "f", sfx = f ? "" : "H";
+  const cls = id => "z l" + (regions[id] || 0), bg = [];
+  const zp = (id, d) => bg.push(`<path class="bgz" d="${d}"/>`) && `<path class="${cls(id)}" data-act="${act}" data-id="${id}" d="${d}"><title>${esc(REGION_LABEL[id])}</title></path>`;
+  const ze = (id, cx, cy, rx, ry) => bg.push(`<ellipse class="bgz" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`) && `<ellipse class="${cls(id)}" data-act="${act}" data-id="${id}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${esc(REGION_LABEL[id])}</title></ellipse>`;
+  // Person-links liegt von vorn rechts im Bild, von hinten links im Bild
+  const px = (side, x) => ((side === "L") === f) ? x : 200 - x;
+  const arm = s => {
+    const X = x => px(s, x), S = [138, 77], E = [152, 127], W = [157, 173], H = [160, 201];
+    const parts = [zp("armO" + s + sfx, capsule(X(S[0]), S[1], 11, X(E[0]), E[1] - 3, 8.5)), zp("armU" + s + sfx, capsule(X(E[0]), E[1] + 4, 8, X(W[0]), W[1], 6)), zp("hand" + s + sfx, capsule(X(W[0]), W[1] + 5, 7, X(H[0]), H[1] + 8, 5.5))];
+    if (!f) parts.push(ze("ell" + s, X(E[0]), E[1], 9, 7));
+    return parts;
   };
-  const leg = side => {
-    const sx = side === "L" ? X(98, 30) : X(72, 30);
-    return [z("beinO" + side, sx, 196, 30, 68, 13), z("kni" + side, sx + 2, 266, 26, 22, 9), z("beinU" + side, sx + 1, 290, 28, 46, 11), z("fuss" + side, sx - 1, 338, 30, 22, 9)];
+  const leg = s => {
+    const X = x => px(s, x), Hp = [117, 202], K = [117, 288], A = [115, 354], T = [119, 378];
+    return [zp("beinO" + s + sfx, capsule(X(Hp[0]), Hp[1], 16, X(K[0]), K[1] - 13, 12)), ze("kni" + s + sfx, X(K[0]), K[1], 12, 12), zp("beinU" + s + sfx, capsule(X(K[0]), K[1] + 13, 11, X(A[0]), A[1], 7)), zp("fuss" + s + sfx, capsule(X(A[0]), A[1] + 6, 7, X(T[0]), T[1] + (f ? 6 : 2), 6))];
   };
+  const neck = f ? zp("hals", "M92 52 L108 52 L110 66 Q100 71 90 66 Z") : zp("nacken", "M92 50 L108 50 L110 66 Q100 71 90 66 Z");
+  const chest = "M72 70 Q100 63 128 70 L130 118 Q100 125 70 118 Z";
+  const waist = "M70 121 Q100 128 130 121 L127 168 Q100 175 73 168 Z";
   const body = f
-    ? [z("gesicht", 77, 8, 46, 46, 23), z("brust", 72, 70, 56, 46, 12), z("bauch", 74, 118, 52, 48, 12), z("leiste", 80, 168, 40, 26, 10)]
-    : [z("kopfhaut", 77, 8, 46, 36, 18), z("nacken", 86, 46, 28, 20, 8), z("rueckenO", 72, 70, 56, 48, 12), z("rueckenU", 74, 120, 52, 44, 12), z("gesaess", 74, 166, 52, 30, 12)];
-  const ell = !f ? [z("ellL", X(46, 20) + 0, 112, 20, 16, 6), z("ellR", X(134, 20), 112, 20, 16, 6)] : [];
-  return `<svg viewBox="0 0 200 372" class="body" role="group" aria-label="Körper ${f ? "Vorderseite" : "Rückseite"}">${body.join("")}${arm("L", 46).join("")}${arm("R", 46).join("")}${leg("L").join("")}${leg("R").join("")}${ell.join("")}</svg>`;
+    ? [ze("gesicht", 100, 30, 17, 21), neck, zp("brust", chest), zp("bauch", waist), zp("leiste", "M74 171 Q100 178 126 171 L122 199 Q100 207 78 199 Z")]
+    : [ze("kopfhaut", 100, 28, 17, 19), neck, zp("rueckenO", chest), zp("rueckenU", waist), zp("gesaess", "M72 171 Q100 178 128 171 L133 207 Q100 219 67 207 Z")];
+  const limbs = arm("L").join("") + arm("R").join("") + leg("L").join("") + leg("R").join("");
+  return `<svg viewBox="0 0 200 392" class="body" role="group" aria-label="Körper ${f ? "Vorderseite" : "Rückseite"}">${bg.join("")}${body.join("")}${limbs}</svg>`;
 }
 
 function viewAbend() {

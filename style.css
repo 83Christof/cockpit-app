@@ -194,7 +194,11 @@ input[type="range"] { padding: 0; accent-color: var(--accent); min-height: 40px;
 .usel { width: auto; min-width: 0; flex: 1; min-height: 44px; }
 .gin { width: 84px; }
 .item.draft { align-items: flex-start; }
+.body { width: 100%; height: auto; max-height: 440px; }
+.z { stroke: var(--card); stroke-width: 1.6; }
 .dbh { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
 .tip summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; min-height: 44px; } .tip summary::-webkit-details-marker { display: none; }
 input[type="search"] { -webkit-appearance: none; appearance: none; }
 a { color: var(--accent); }
+
+.bgz { fill: var(--z0); stroke: var(--z0); stroke-width: 5; stroke-linejoin: round; pointer-events: none; }

@@ -55,6 +55,12 @@ function daypartTable(st) {
   return `<div class="tablewrap"><table class="tbl"><thead><tr><th>Tageszeit</th><th>Als Spitze genannt</th><th>Einträge zwischendurch</th><th>Ø Stärke</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.peak}</td><td>${r.n}</td><td>${r.avg != null ? fmtNum(r.avg) : "–"}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
+function epRegTable(st) {
+  const rows = episodeRegionStats(st.from, st.to).slice(0, 10);
+  if (!rows.length) return `<p class="muted">Noch keine Körperstellen bei "Juckreiz zwischendurch" gewählt.</p>`;
+  return `<div class="tablewrap"><table class="tbl"><thead><tr><th>Stelle</th><th>Einträge</th><th>Ø Stärke</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${r.n}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
 function viewAuswertung() {
   const p = ui.period, st = periodStats(p), recs = recommendations();
   const regs = regionStats(st.from, st.to).slice(0, 8);
@@ -68,6 +74,7 @@ function viewAuswertung() {
     ${corrTable(ui.corrLag, 10)}</section>
   <section class="card"><h2>Tageszeit</h2>${daypartTable(st)}</section>
   <section class="card"><h2>Betroffene Stellen</h2>${regs.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Stelle</th><th>Tage</th><th>Ø Stufe</th></tr></thead><tbody>${regs.map(r => `<tr><td>${esc(r.label)}</td><td>${r.days}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Noch keine Stellen erfasst.</p>`}</section>
+  <section class="card"><h2>Juckreiz zwischendurch nach Körperstelle</h2>${epRegTable(st)}</section>
   <section class="card"><h2>Für Claude</h2><p class="muted small">Kopiert deine Daten der letzten 30 Tage als Text. Im Chat einfügen, dann erstelle ich eine ausführliche Auswertung.</p><button class="btn" data-act="copyClaude">Daten für Claude kopieren</button></section>`;
 }
 
@@ -91,6 +98,7 @@ function viewBericht() {
     </tbody></table>
     <h3>Verlauf Juckreiz</h3>${itchChart(keys)}
     <h3>Betroffene Stellen</h3>${regs.length ? `<table class="tbl"><thead><tr><th>Stelle</th><th>Tage</th><th>Ø Stufe (1-3)</th></tr></thead><tbody>${regs.map(r => `<tr><td>${esc(r.label)}</td><td>${r.days}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table>` : `<p>Keine Angaben.</p>`}
+    <h3>Juckreiz zwischendurch nach Körperstelle</h3>${epRegTable(st)}
     <h3>Tageszeit des Juckreizes</h3>${daypartTable(st)}
     <h3>Auffälligkeiten (Hinweise, keine Beweise)</h3>${recs.map(r => `<p class="small">• ${esc(r.t)}</p>`).join("")}
     <h3>Tagesliste</h3>
@@ -230,8 +238,10 @@ document.addEventListener("click", async e => {
     case "itemDel": { const d = day(k); d.meals.forEach(m => { m.items = m.items.filter(i => i.id !== el.dataset.id); }); d.meals = d.meals.filter(m => m.items.length); save(); render(); break; }
     case "altLoad": loadAlt(); break;
     case "peak": { const p = el.dataset.p, arr = ui.abend.peak || (ui.abend.peak = []); const i = arr.indexOf(p); if (i >= 0) arr.splice(i, 1); else arr.push(p); render(); break; }
+    case "epMap": ui.epMapOpen = !ui.epMapOpen; render(); break;
+    case "epreg": { const id = el.dataset.id; if (ui.epRegions[id]) delete ui.epRegions[id]; else ui.epRegions[id] = 1; render(); break; }
     case "epSet": ui.epItch = +el.dataset.v; render(); break;
-    case "epAdd": { if (ui.epItch == null) { toast("Bitte die Stärke von 0 bis 10 wählen"); break; } day(k).episodes.push({ id: uid(), time: ui.epTime || nowTime(), itch: ui.epItch }); ui.epItch = null; ui.epTime = null; save(); toast("Eingetragen"); render(); break; }
+    case "epAdd": { if (ui.epItch == null) { toast("Bitte die Stärke von 0 bis 10 wählen"); break; } day(k).episodes.push({ id: uid(), time: ui.epTime || nowTime(), itch: ui.epItch, regions: Object.keys(ui.epRegions) }); ui.epItch = null; ui.epTime = null; ui.epRegions = {}; ui.epMapOpen = false; save(); toast("Eingetragen"); render(); break; }
     case "epDel": { const d = day(k); d.episodes = d.episodes.filter(e => e.id !== el.dataset.id); save(); render(); break; }
     case "tstep": case "tnow": {
       const b = el.dataset.b;

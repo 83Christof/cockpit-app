@@ -162,19 +162,27 @@ const FOODS = parseFoods(FOOD_ROWS);
 
 /* Körperregionen für den Abend-Check. v = Ansicht (f vorne, b hinten) */
 const REGIONS = [
-  { id: "kopfhaut", label: "Kopfhaut", v: "b" }, { id: "gesicht", label: "Gesicht/Ohren", v: "f" },
-  { id: "nacken", label: "Nacken", v: "b" }, { id: "brust", label: "Brust", v: "f" },
-  { id: "bauch", label: "Bauch", v: "f" }, { id: "rueckenO", label: "Oberer Rücken", v: "b" },
-  { id: "rueckenU", label: "Unterer Rücken", v: "b" }, { id: "gesaess", label: "Gesäß", v: "b" },
-  { id: "leiste", label: "Leiste/Genital", v: "f" },
-  { id: "armOL", label: "Oberarm links", v: "f" }, { id: "armOR", label: "Oberarm rechts", v: "f" },
+  // Vorderseite
+  { id: "gesicht", label: "Gesicht/Ohren", v: "f" }, { id: "hals", label: "Hals vorne", v: "f" }, { id: "brust", label: "Brust", v: "f" },
+  { id: "bauch", label: "Bauch", v: "f" }, { id: "leiste", label: "Leiste/Genital", v: "f" },
+  { id: "armOL", label: "Oberarm links (vorne)", v: "f" }, { id: "armOR", label: "Oberarm rechts (vorne)", v: "f" },
+  { id: "armUL", label: "Unterarm links (vorne)", v: "f" }, { id: "armUR", label: "Unterarm rechts (vorne)", v: "f" },
+  { id: "handL", label: "Hand links (Innenseite)", v: "f" }, { id: "handR", label: "Hand rechts (Innenseite)", v: "f" },
+  { id: "beinOL", label: "Oberschenkel links (vorne)", v: "f" }, { id: "beinOR", label: "Oberschenkel rechts (vorne)", v: "f" },
+  { id: "kniL", label: "Knie links (vorne)", v: "f" }, { id: "kniR", label: "Knie rechts (vorne)", v: "f" },
+  { id: "beinUL", label: "Unterschenkel links (vorne)", v: "f" }, { id: "beinUR", label: "Unterschenkel rechts (vorne)", v: "f" },
+  { id: "fussL", label: "Fuß links (Spann)", v: "f" }, { id: "fussR", label: "Fuß rechts (Spann)", v: "f" },
+  // Rückseite
+  { id: "kopfhaut", label: "Kopfhaut", v: "b" }, { id: "nacken", label: "Nacken", v: "b" },
+  { id: "rueckenO", label: "Oberer Rücken", v: "b" }, { id: "rueckenU", label: "Unterer Rücken", v: "b" }, { id: "gesaess", label: "Gesäß", v: "b" },
+  { id: "armOLH", label: "Oberarm links (hinten)", v: "b" }, { id: "armORH", label: "Oberarm rechts (hinten)", v: "b" },
   { id: "ellL", label: "Ellenbogen links", v: "b" }, { id: "ellR", label: "Ellenbogen rechts", v: "b" },
-  { id: "armUL", label: "Unterarm links", v: "f" }, { id: "armUR", label: "Unterarm rechts", v: "f" },
-  { id: "handL", label: "Hand links", v: "f" }, { id: "handR", label: "Hand rechts", v: "f" },
-  { id: "beinOL", label: "Oberschenkel links", v: "f" }, { id: "beinOR", label: "Oberschenkel rechts", v: "f" },
-  { id: "kniL", label: "Knie links", v: "f" }, { id: "kniR", label: "Knie rechts", v: "f" },
-  { id: "beinUL", label: "Unterschenkel links", v: "b" }, { id: "beinUR", label: "Unterschenkel rechts", v: "b" },
-  { id: "fussL", label: "Fuß links", v: "f" }, { id: "fussR", label: "Fuß rechts", v: "f" }
+  { id: "armULH", label: "Unterarm links (hinten)", v: "b" }, { id: "armURH", label: "Unterarm rechts (hinten)", v: "b" },
+  { id: "handLH", label: "Handrücken links", v: "b" }, { id: "handRH", label: "Handrücken rechts", v: "b" },
+  { id: "beinOLH", label: "Oberschenkel links (hinten)", v: "b" }, { id: "beinORH", label: "Oberschenkel rechts (hinten)", v: "b" },
+  { id: "kniLH", label: "Kniekehle links", v: "b" }, { id: "kniRH", label: "Kniekehle rechts", v: "b" },
+  { id: "beinULH", label: "Wade links", v: "b" }, { id: "beinURH", label: "Wade rechts", v: "b" },
+  { id: "fussLH", label: "Ferse links", v: "b" }, { id: "fussRH", label: "Ferse rechts", v: "b" }
 ];
 const REGION_LABEL = Object.fromEntries(REGIONS.map(r => [r.id, r.label]));
 
