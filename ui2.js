@@ -180,7 +180,7 @@ function render() {
   const fr = $("#mform"); if (fr) fr.addEventListener("submit", e => { e.preventDefault(); manualProduct(fr); });
   const rs = $("#restore"); if (rs) rs.addEventListener("change", restoreBackup);
 }
-function openAbendData() { const c = day(ui.date).check; ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", peak: [...(c.peak || [])] } : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", peak: [] }; }
+function openAbendData() { const c = day(ui.date).check; ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", alc: c.alc || (hasAlcDiary(ui.date) ? "low" : "none"), peak: [...(c.peak || [])] } : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", alc: hasAlcDiary(ui.date) ? "low" : "none", peak: [] }; }
 
 /* ---------- Ereignisse ---------- */
 document.addEventListener("click", async e => {
@@ -207,7 +207,7 @@ document.addEventListener("click", async e => {
     case "abendSave": {
       const a2 = ui.abend;
       if (a2.itch == null) { toast("Bitte den Juckreiz von 0 bis 10 wählen"); break; }
-      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", peak: a2.peak || [], ts: Date.now() };
+      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", alc: a2.alc || "none", peak: a2.peak || [], ts: Date.now() };
       save(); ui.abend = null; toast("Abend-Check gespeichert"); location.hash = "heute"; break;
     }
     case "slot": ui.slot = el.dataset.s; if (ui.mealTimeAuto) ui.mealTime = defaultMealTime(ui.slot, ui.date); render(); break;

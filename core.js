@@ -40,6 +40,9 @@ function save() {
   }, 80);
 }
 function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null, episodes: [] }; if (!S.days[k].episodes) S.days[k].episodes = []; return S.days[k]; }
+/* Steht im Tagebuch Alkohol? Dient als Vorbelegung im Abend-Check */
+const hasAlcDiary = k => dayItems(k).some(i => (i.tags || []).includes("alc"));
+
 /* Mögliche Doppeleinträge eines Tages: gleiche Mahlzeit, gleicher Name, gleiche Menge (der erste bleibt unmarkiert) */
 function dupIds(k) {
   const d = S.days[k], seen = new Set(), dup = new Set();

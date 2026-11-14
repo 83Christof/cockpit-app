@@ -150,7 +150,8 @@ function viewAbend() {
     ${scale("skin", "Wie war die Haut heute (Rötung, Schuppung)?", "0 ruhig", "10 sehr aktiv")}
     ${yn("scratchBlood", "Hast du dich blutig gekratzt?")}
     ${yn("sleepBad", "Juckreiz hat den Schlaf gestört?")}
-    <div class="field"><div class="label">Geraucht heute?</div><div class="togs">${[["none", "Nein"], ["cigar", "Zigarre"], ["cigarette", "Zigarette"]].map(([v, l]) => `<button class="tog ${a.smoke === v ? "on" : ""}" data-act="set" data-k="smoke" data-v="${v}"><span>${l}</span></button>`).join("")}</div></div>
+    <div class="field"><div class="label">Zigarre geraucht heute?</div><div class="togs two">${[["none", "Nein"], ["cigar", "Ja"]].map(([v, l]) => `<button class="tog ${(a.smoke === v || (v === "cigar" && a.smoke === "cigarette")) ? "on" : ""}" data-act="set" data-k="smoke" data-v="${v}"><span>${l}</span></button>`).join("")}</div></div>
+    <div class="field"><div class="label">Alkohol getrunken heute?</div><div class="togs">${[["none", "Nein"], ["low", "1 bis 2 Getränke"], ["high", "3 oder mehr"]].map(([v, l]) => `<button class="tog ${a.alc === v ? "on" : ""}" data-act="set" data-k="alc" data-v="${v}"><span>${l}</span></button>`).join("")}</div>${hasAlcDiary(k) ? `<p class="muted small">Im Tagebuch steht heute Alkohol.</p>` : ""}</div>
     <div class="field"><div class="label">Stress heute: <b>${a.stress}</b> von 10</div><input type="range" min="0" max="10" step="1" value="${a.stress}" id="stress" data-bind="stress" aria-label="Stress"></div>
   </section>
   <section class="card">
@@ -180,8 +181,8 @@ function viewAbend() {
 }
 function openAbend() {
   const c = day(ui.date).check;
-  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", peak: [...(c.peak || [])] }
-    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", peak: [] };
+  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", alc: c.alc || (hasAlcDiary(ui.date) ? "low" : "none"), peak: [...(c.peak || [])] }
+    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", alc: hasAlcDiary(ui.date) ? "low" : "none", peak: [] };
   location.hash = "abend";
 }
 
