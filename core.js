@@ -17,8 +17,9 @@ const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 
 /* ---------- Speicher ---------- */
 const KEY = "haut-cockpit-v1";
+const APP_VERSION = "16";
 function defaults() {
-  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, custom: [], alias: {}, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {} };
+  return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, custom: [], alias: {}, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {}, weights: {}, doc: { next: "", questions: [] }, lastBackup: null, backupSnooze: 0, skipCheck: "" };
 }
 function loadState() {
   try {
@@ -42,6 +43,33 @@ function save() {
 function day(k) { if (!S.days[k]) S.days[k] = { meals: [], meds: {}, check: null, episodes: [] }; if (!S.days[k].episodes) S.days[k].episodes = []; return S.days[k]; }
 /* Steht im Tagebuch Alkohol? Dient als Vorbelegung im Abend-Check */
 const hasAlcDiary = k => dayItems(k).some(i => (i.tags || []).includes("alc"));
+
+/* ---------- Gewicht ---------- */
+if (!S.weights || typeof S.weights !== "object") S.weights = {};
+if (!S.doc || typeof S.doc !== "object") S.doc = { next: "", questions: [] };
+if (!Array.isArray(S.doc.questions)) S.doc.questions = [];
+function lastWeight(upTo) { const ks = Object.keys(S.weights).filter(k => !upTo || k <= upTo).sort(); return ks.length ? { k: ks[ks.length - 1], v: S.weights[ks[ks.length - 1]] } : null; }
+const bmi = kg => (S.profile.height > 0 && kg > 0) ? kg / Math.pow(S.profile.height / 100, 2) : null;
+const daysUntil = k => Math.round((dateOf(k) - dateOf(dkey())) / 864e5);
+/* "3.12.2026" oder "03.12.26" in den Tagesschlüssel 2026-12-03 umwandeln, sonst null */
+function parseDeDate(t) {
+  const m = String(t || "").trim().match(/^(\d{1,2})[.,\/\- ](\d{1,2})[.,\/\- ](\d{2}|\d{4})$/); if (!m) return null;
+  const y = m[3].length === 2 ? 2000 + +m[3] : +m[3], d = new Date(y, +m[2] - 1, +m[1], 12);
+  return (d.getMonth() === +m[2] - 1 && d.getDate() === +m[1]) ? dkey(d) : null;
+}
+const deDate = k => k ? k.slice(8) + "." + k.slice(5, 7) + "." + k.slice(0, 4) : "";
+
+/* ---------- Schnellauswahl beim Essen ---------- */
+const cloneItem = i => ({ ...i, id: uid(), tags: [...(i.tags || [])] });
+/* Lebensmittel, die an mindestens 2 der letzten 60 erfassten Tage vorkamen, häufigste zuerst (Vorlage ist der jüngste Eintrag) */
+function frequentItems(limit) {
+  const cnt = {}, tpl = {};
+  Object.keys(S.days).sort().slice(-60).forEach((k, ix) => {
+    const seen = new Set();
+    S.days[k].meals.forEach(m => m.items.forEach(i => { if (!seen.has(i.name)) { seen.add(i.name); cnt[i.name] = (cnt[i.name] || 0) + 1; } tpl[i.name] = { item: i, ix }; }));
+  });
+  return Object.keys(cnt).filter(n => cnt[n] >= 2).sort((a, b) => cnt[b] - cnt[a] || tpl[b].ix - tpl[a].ix).slice(0, limit || 8).map(n => tpl[n].item);
+}
 
 /* Mögliche Doppeleinträge eines Tages: gleiche Mahlzeit, gleicher Name, gleiche Menge (der erste bleibt unmarkiert) */
 function dupIds(k) {

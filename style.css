@@ -202,3 +202,27 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 a { color: var(--accent); }
 
 .bgz { fill: var(--z0); stroke: var(--z0); stroke-width: 5; stroke-linejoin: round; pointer-events: none; }
+
+/* Version 16: große Körperkarte, Hinweise, Schnellauswahl, Fotos */
+.mapseg { margin: 8px 0; }
+.mapone { max-width: 310px; margin: 0 auto; }
+.mapone .body { max-height: none; display: block; }
+button.chip { min-height: 36px; padding: 6px 12px; }
+.btnchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.btnchip .lamp { vertical-align: -2px; margin-right: 6px; }
+.banner.info { background: var(--soft); border-color: var(--line); }
+.banner .row { flex-wrap: wrap; }
+.quick { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
+.btn.left { text-align: left; padding-top: 8px; padding-bottom: 8px; }
+.filebtn { justify-content: center; cursor: pointer; }
+.phgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ph { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); text-align: left; }
+.ph img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.ph span { font-size: .75rem; color: var(--muted); padding: 0 8px 8px; }
+.phbig { width: 100%; height: auto; border-radius: 10px; display: block; margin: 8px 0; }
+.phcmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+.phfig { margin: 0; } .phfig img { width: 100%; height: auto; border-radius: 8px; display: block; }
+.phfig figcaption { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+.phrep { margin: 8px 0; break-inside: avoid; }
+@media print { .phfig img { max-height: 7cm; width: auto; max-width: 100%; } }
+#nav[hidden] { display: none; }

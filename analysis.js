@@ -24,7 +24,11 @@ const FEATURES = [
   { id: "stress", label: "Hoher Stress (7 oder mehr)", ev: "", nonfood: true, fn: (f, d) => d.check && d.check.stress >= 7 },
   { id: "sleep", label: "Schlecht geschlafen", ev: "", nonfood: true, fn: (f, d) => d.check && d.check.sleepBad },
   { id: "allegra", label: "Antihistaminikum eingenommen", ev: "", nonfood: true, fn: (f, d) => (d.meds && d.meds.allegra > 0) },
-  { id: "smoke", label: "Zigarre geraucht", ev: "B", nonfood: true, fn: (f, d) => !!(d.check && d.check.smoke && d.check.smoke !== "none") }
+  { id: "smoke", label: "Zigarre geraucht", ev: "B", nonfood: true, fn: (f, d) => !!(d.check && d.check.smoke && d.check.smoke !== "none") },
+  // has: nur Tage werten, an denen die Frage schon gestellt wurde (ältere Abend-Checks kennen sie nicht)
+  { id: "sick", label: "Erkältung oder Infekt", ev: "", nonfood: true, has: d => !!(d.check && d.check.sick !== undefined), fn: (f, d) => !!d.check.sick },
+  { id: "sport", label: "Sport oder Bewegung (30 Minuten oder mehr)", ev: "", nonfood: true, has: d => !!(d.check && d.check.sport !== undefined), fn: (f, d) => !!d.check.sport },
+  { id: "sleepShort", label: "Wenig Schlaf (unter 6 Stunden)", ev: "", nonfood: true, has: d => !!(d.check && d.check.sleepH != null), fn: (f, d) => d.check.sleepH < 6 }
 ];
 
 function dayFeatures(k) {
@@ -65,6 +69,7 @@ function correlations() {
         const y = lag === 0 ? r.itch0 : r.itch1;
         if (y == null) return;
         if (!ft.nonfood && !r.f.items.length) return; // ohne Essenseintrag keine Aussage
+        if (ft.has && !ft.has(r.d || {})) return;
         (ft.fn(r.f, r.d || {}) ? exp : un).push(y);
       });
       if (exp.length < 3 || un.length < 3) continue;
@@ -138,8 +143,9 @@ function regionStats(fromKey, toKey) {
   return Object.entries(agg).map(([id, a]) => ({ id, label: REGION_LABEL[id] || id, days: a.days, avg: a.sum / a.days, max: a.max })).sort((a, b) => b.days - a.days || b.avg - a.avg);
 }
 
-function periodStats(n) {
-  const to = dkey(), from = addDays(to, -(n - 1));
+/* Kennzahlen für n Tage bis einschließlich end (Standard: heute) */
+function periodStats(n, end) {
+  const to = end || dkey(), from = addDays(to, -(n - 1));
   const ks = Object.keys(S.days).filter(k => k >= from && k <= to).sort();
   const itch = ks.map(itchOf).filter(x => x != null);
   const checked = ks.filter(k => itchOf(k) != null);
@@ -155,6 +161,8 @@ function periodStats(n) {
     skFull: meds.filter(m => m.skM && m.skN && m.skE).length, skDays: meds.filter(m => m.skM || m.skN || m.skE).length,
     allegraDays: meds.filter(m => m.allegra > 0).length, allegraTotal: meds.reduce((s, m) => s + (m.allegra || 0), 0),
     cremeAvg: mean(ks.map(k => (S.days[k].meds || {}).creme || 0)), enstilarDays: meds.filter(m => m.enstilar).length,
+    sickDays: checked.filter(k => S.days[k].check.sick).length, sportDays: checked.filter(k => S.days[k].check.sport).length,
+    sleepAvg: mean(checked.map(k => S.days[k].check.sleepH).filter(x => x != null)),
     keys: ks
   };
 }
@@ -196,6 +204,11 @@ function recommendations() {
   if (st.mealN >= 5 && st.kcalOver >= 3) rec.push({ k: "info", t: `Das Kalorienziel von ${S.profile.kcalMax} kcal wurde an ${st.kcalOver} Tagen überschritten. Gewichtsreduktion ist die am stärksten belegte Maßnahme bei Übergewicht.` });
   if (st.mealN >= 5 && st.protAvg != null && st.protAvg < protTarget() * 0.85) rec.push({ k: "info", t: `Protein im Schnitt ${Math.round(st.protAvg)} g, Ziel ${protTarget()} g. Mehr Skyr, Quark, Eier, Fisch, Hähnchen, Hülsenfrüchte.` });
   if (st.skDays >= 5 && st.skFull < st.skDays * 0.7) rec.push({ k: "info", t: `${mname("sk")} wurde nur an ${st.skFull} von ${st.skDays} Tagen vollständig (morgens, mittags, abends) abgehakt. Fehlende Dosen mit dem Hautarzt klären, nicht eigenmächtig ändern.` });
+  const wk = Object.keys(S.weights).filter(k => k >= addDays(dkey(), -29)).sort();
+  if (wk.length >= 2) {
+    const w0 = S.weights[wk[0]], w1 = S.weights[wk[wk.length - 1]], dw = w1 - w0;
+    if (Math.abs(dw) >= 0.5) rec.push({ k: dw < 0 ? "pos" : "info", t: `Gewicht in den letzten 30 Tagen: ${dw > 0 ? "+" : ""}${fmtNum(dw)} kg (${fmtNum(w0)} auf ${fmtNum(w1)} kg).` });
+  }
   if (!rec.length) rec.push({ k: "info", t: "Noch keine Auffälligkeiten. Weiter täglich eintragen." });
   return rec;
 }
@@ -211,29 +224,49 @@ function claudeExport(n) {
   lines.push("Kontext: Psoriasis. " + (S.profile.therapy ? "Therapie und Besonderheiten: " + S.profile.therapy + ". " : "") + "Ziel max. " + S.profile.kcalMax + " kcal und viel Protein. Juckreiz 0-10 (abends).");
   lines.push("Aufgabe: Zusammenhänge zwischen Essen/Trinken und Juckreiz am gleichen und am Folgetag prüfen, Muster nach Körperregion, Wirkung von Antihistaminikum/Creme, konkrete Empfehlungen für 2 Wochen und Fragen für den Hautarzt. Bitte Evidenzlage nennen und Unsicherheit kennzeichnen.");
   lines.push("");
-  lines.push("TAGE (Datum | Juckreiz | Blutig gekratzt | Stress | Schlaf schlecht | Zigarre | Alkohol | Regionen (Stufe 1-3) | Medikation | Essen mit Uhrzeit [Ampel] | Tageszeit der Spitze | Juckreiz zwischendurch (Uhrzeit=Stärke))");
+  lines.push("TAGE (Datum | Juckreiz | Blutig gekratzt | Stress | Schlaf schlecht | Zigarre | Alkohol | Infekt | Bewegung | Schlaf in Stunden | Regionen (Stufe 1-3) | Medikation | Essen mit Uhrzeit [Ampel] | Tageszeit der Spitze | Juckreiz zwischendurch (Uhrzeit=Stärke))");
   st.keys.forEach(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {};
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + " " + v).join("; ") : "";
     const eps = (d.episodes || []).map(epStr).join("; ");
     const food = d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => `${i.name}${i.g ? " " + i.g + itemUnit(i) : ""} [${i.r}]`).join(", ")).join(" | ");
-    lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? "ja" : "nein"} | ${alcTxt(c)} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0}${pp(m.allegraP)} Creme ${m.creme || 0}${pp(m.cremeP)} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"} | Spitze ${(c.peak || []).join("/") || "-"} | Episoden ${eps || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
+    lines.push(`${k} | ${c.itch ?? "-"} | ${c.scratchBlood ? "ja" : "nein"} | ${c.stress ?? "-"} | ${c.sleepBad ? "ja" : "nein"} | ${c.smoke && c.smoke !== "none" ? "ja" : "nein"} | ${alcTxt(c)} | ${c.sick ? "ja" : "nein"} | ${c.sport ? "ja" : "nein"} | ${c.sleepH ?? "-"} | ${reg || "-"} | Tabletten ${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} Antihistaminikum ${m.allegra || 0}${pp(m.allegraP)} Creme ${m.creme || 0}${pp(m.cremeP)} Schaum ${m.enstilar ? "ja" : "nein"} | ${food || "-"} | Spitze ${(c.peak || []).join("/") || "-"} | Episoden ${eps || "-"}${c.note ? " | Notiz: " + c.note : ""}`);
   });
+  const wks = Object.keys(S.weights).filter(k => k >= st.from && k <= st.to).sort();
+  if (wks.length) { lines.push(""); lines.push("GEWICHT (Datum=kg): " + wks.map(k => k + "=" + S.weights[k]).join("; ") + (S.profile.height ? " | Größe " + S.profile.height + " cm" : "")); }
+  if (S.doc.questions.length) { lines.push(""); lines.push("MEINE FRAGEN AN DEN ARZT: " + S.doc.questions.map(q => q.t).join(" | ")); }
   return lines.join("\n");
 }
 
 function csvExport() {
-  const head = ["Datum", "Juckreiz", "Blutig", "Stress", "SchlafSchlecht", "Zigarre", "Alkohol", "Hautzustand", "Regionen", "TablettenM", "TablettenN", "TablettenA", "Antihistaminikum", "Creme", "Schaum", "kcal", "Protein", "Rot", "Gelb", "Gruen", "Spitze", "Episoden", "Essen", "Notiz"];
+  const head = ["Datum", "Juckreiz", "Blutig", "Stress", "SchlafSchlecht", "Zigarre", "Alkohol", "Hautzustand", "Regionen", "TablettenM", "TablettenN", "TablettenA", "Antihistaminikum", "Creme", "Schaum", "kcal", "Protein", "Rot", "Gelb", "Gruen", "Spitze", "Episoden", "Essen", "Notiz", "Infekt", "Bewegung", "SchlafStunden", "Gewicht"];
   const q = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const rows = Object.keys(S.days).sort().map(k => {
     const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k);
     const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).map(([id, v]) => (REGION_LABEL[id] || id) + ":" + v).join("; ") : "";
-    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? 1 : 0, c.alc && c.alc !== "none" ? c.alc : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, (c.peak || []).join("/"), (d.episodes || []).map(epStr).join("; "), d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || ""].map(q).join(";");
+    return [k, c.itch ?? "", c.scratchBlood ? 1 : 0, c.stress ?? "", c.sleepBad ? 1 : 0, c.smoke && c.smoke !== "none" ? 1 : 0, c.alc && c.alc !== "none" ? c.alc : "", c.skin ?? "", reg, m.skM ? 1 : 0, m.skN ? 1 : 0, m.skE ? 1 : 0, m.allegra || 0, m.creme || 0, m.enstilar ? 1 : 0, s.kcal, s.prot, s.c.r || 0, s.c.y || 0, s.c.g || 0, (c.peak || []).join("/"), (d.episodes || []).map(epStr).join("; "), d.meals.map(ml => ml.slot + (ml.time ? " " + ml.time : "") + ": " + ml.items.map(i => i.name).join(", ")).join(" | "), c.note || "", c.sick ? 1 : 0, c.sport ? 1 : 0, c.sleepH ?? "", S.weights[k] != null ? String(S.weights[k]).replace(".", ",") : ""].map(q).join(";");
   });
   return "﻿" + head.join(";") + "\n" + rows.join("\n");
 }
 
 /* ---------- Diagramme (SVG) ---------- */
+/* Gewichtskurve über den Zeitraum, die Achse passt sich den Werten an */
+function weightChart(from, to) {
+  const ks = Object.keys(S.weights).filter(k => k >= from && k <= to).sort();
+  if (ks.length < 2) return `<p class="muted">Für eine Kurve braucht es mindestens 2 Einträge im Zeitraum.</p>`;
+  const W = 340, H = 140, L = 30, R = 8, T = 8, B = 22;
+  const vals = ks.map(k => S.weights[k]), lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
+  const t0 = dateOf(from).getTime(), t1 = dateOf(to).getTime();
+  const x = k => L + (W - L - R) * ((dateOf(k).getTime() - t0) / (t1 - t0 || 1));
+  const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo || 1));
+  let grid = "";
+  [lo, (lo + hi) / 2, hi].forEach(v => { grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="gl"/><text x="${L - 4}" y="${y(v) + 3}" class="ax" text-anchor="end">${fmtNum(v)}</text>`; });
+  const line = ks.map((k, j) => (j ? "L" : "M") + x(k).toFixed(1) + " " + y(S.weights[k]).toFixed(1)).join(" ");
+  const dots = ks.map(k => `<circle cx="${x(k).toFixed(1)}" cy="${y(S.weights[k]).toFixed(1)}" r="2.8" class="dot"/>`).join("");
+  const lab = (k, anchor) => `<text x="${x(k)}" y="${H - 6}" class="ax" text-anchor="${anchor}">${k.slice(8)}.${k.slice(5, 7)}.</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Gewichtsverlauf in Kilogramm">${grid}<path d="${line}" class="av"/>${dots}${lab(from, "start")}${lab(to, "end")}</svg>`;
+}
+
 function itchChart(keys) {
   const W = 340, H = 150, L = 24, R = 8, T = 8, B = 22;
   const n = keys.length; if (n < 2) return `<p class="muted">Zu wenige Tage für ein Diagramm.</p>`;

@@ -24,11 +24,11 @@ function addRecipe(id) {
 
 /* ---------- Verlauf ---------- */
 function viewVerlauf() {
-  const tabs = [["auswertung", "Auswertung"], ["bericht", "Arztbericht"], ["einstellungen", "Einstellungen"]];
+  const tabs = [["auswertung", "Auswertung"], ["bericht", "Arztbericht"], ["fotos", "Fotos"], ["einstellungen", "Einstellungen"]];
   const t = ui.verlaufTab;
   return `<div class="topbar"><h1>Verlauf</h1></div>
-  <div class="seg">${tabs.map(([id, l]) => `<button class="${t === id ? "on" : ""}" data-act="vt" data-t="${id}">${l}</button>`).join("")}</div>
-  ${t === "auswertung" ? viewAuswertung() : t === "bericht" ? viewBericht() : viewEinstellungen()}`;
+  <div class="seg small">${tabs.map(([id, l]) => `<button class="${t === id ? "on" : ""}" data-act="vt" data-t="${id}">${l}</button>`).join("")}</div>
+  ${t === "auswertung" ? viewAuswertung() : t === "bericht" ? viewBericht() : t === "fotos" ? viewFotos() : viewEinstellungen()}`;
 }
 
 function statTiles(st) {
@@ -67,6 +67,7 @@ function viewAuswertung() {
   return `<div class="seg small">${[14, 30, 90].map(n => `<button class="${p === n ? "on" : ""}" data-act="period" data-n="${n}">${n} Tage</button>`).join("")}</div>
   <section class="card"><h2>Juckreiz-Verlauf</h2>${itchChart(st.keys.length ? (() => { const a = []; for (let i = p - 1; i >= 0; i--) a.push(addDays(dkey(), -i)); return a; })() : [])}</section>
   <section class="card">${statTiles(st)}</section>
+  <section class="card"><h2>Gewicht</h2>${weightBlock(st)}</section>
   <section class="card"><h2>Empfehlungen</h2>${recs.map(r => `<div class="rec ${r.k}">${esc(r.t)}</div>`).join("")}
     <p class="muted small">Automatische Auswertung deiner Eintragungen, keine ärztliche Beratung. Korrelation ist nicht Ursache. Therapie nie ohne Hautarzt ändern.</p></section>
   <section class="card"><div class="row between"><h2>Zusammenhänge</h2><div class="seg small"><button class="${ui.corrLag === 1 ? "on" : ""}" data-act="lag" data-l="1">Folgetag</button><button class="${ui.corrLag === 0 ? "on" : ""}" data-act="lag" data-l="0">Gleicher Abend</button><button class="${ui.corrLag === "h" ? "on" : ""}" data-act="lag" data-l="h">1-4 h nach Essen</button></div></div>
@@ -78,16 +79,48 @@ function viewAuswertung() {
   <section class="card"><h2>Für Claude</h2><p class="muted small">Kopiert deine Daten der letzten 30 Tage als Text. Im Chat einfügen, dann erstelle ich eine ausführliche Auswertung.</p><button class="btn" data-act="copyClaude">Daten für Claude kopieren</button></section>`;
 }
 
+/* Gewicht: Kurve, aktueller Wert und die letzten Einträge zum Löschen */
+function weightBlock(st) {
+  const ks = Object.keys(S.weights).sort(), inP = ks.filter(k => k >= st.from && k <= st.to);
+  if (!ks.length) return `<p class="muted">Noch kein Gewicht eingetragen. Das geht im Cockpit ganz unten.</p>`;
+  const lw = lastWeight(), b = bmi(lw.v), diff = inP.length >= 2 ? S.weights[inP[inP.length - 1]] - S.weights[inP[0]] : null;
+  return `${weightChart(st.from, st.to)}
+    <p class="small">Aktuell <b>${fmtNum(lw.v)} kg</b> (${esc(fmtDate(lw.k))})${b ? ", BMI " + fmtNum(b) : ""}${diff != null ? ". Im Zeitraum " + (diff > 0 ? "+" : "") + fmtNum(diff) + " kg" : ""}.</p>
+    ${ks.slice(-5).reverse().map(k => `<div class="item"><div class="im"><strong>${fmtNum(S.weights[k])} kg</strong><span class="muted small">${esc(fmtDateLong(k))}</span></div><button class="ic" data-act="weightDel" data-k="${k}" aria-label="Eintrag löschen">×</button></div>`).join("")}`;
+}
+
+/* Arzttermin und Fragenliste: Bearbeitung, wird nicht mitgedruckt */
+function docInfo() {
+  if (ui.docNextText != null && ui.docNextText.trim() && !parseDeDate(ui.docNextText)) return "Bitte als Tag.Monat.Jahr eintragen, z. B. 03.12.2026.";
+  if (!S.doc.next) return "Kein Termin eingetragen.";
+  const dn = daysUntil(S.doc.next);
+  return dn < 0 ? "Der Termin liegt in der Vergangenheit." : dn === 0 ? "Der Termin ist heute." : "Der Termin ist in " + dn + (dn === 1 ? " Tag" : " Tagen") + " (" + fmtDateLong(S.doc.next) + ").";
+}
+function docCard() {
+  return `<section class="card noprint"><h2>Arzttermin und Fragen</h2>
+    <label class="label" for="docNext">Nächster Termin (Tag.Monat.Jahr)</label>
+    <input id="docNext" inputmode="numeric" placeholder="z. B. 03.12.2026" value="${esc(ui.docNextText ?? deDate(S.doc.next))}" data-bind="docNext" autocomplete="off">
+    <p class="muted small" id="docInfo">${esc(docInfo())}</p>
+    <label class="label" for="qText">Frage an den Arzt</label>
+    <div class="inl"><input id="qText" value="${esc(ui.qText)}" data-bind="qText" placeholder="z. B. Blutwerte, Dosis, Alternativen"><button class="btn small" data-act="docQAdd">Hinzufügen</button></div>
+    ${S.doc.questions.map(q => `<div class="item"><div class="im">${esc(q.t)}</div><button class="ic" data-act="docQDel" data-id="${q.id}" aria-label="Frage löschen">×</button></div>`).join("")}
+    <p class="muted small">Termin und Fragen erscheinen im Bericht. Eine Woche vor dem Termin erinnert das Cockpit daran.</p></section>`;
+}
+
 function viewBericht() {
   const p = ui.period, st = periodStats(p), regs = regionStats(st.from, st.to).slice(0, 10), recs = recommendations();
   const keys = []; for (let i = p - 1; i >= 0; i--) keys.push(addDays(dkey(), -i));
   const rowsD = keys.filter(k => S.days[k] && (S.days[k].check || S.days[k].meals.length)).reverse();
-  const pr = S.profile;
+  const pr = S.profile, lw = lastWeight(st.to), wIn = Object.keys(S.weights).filter(k => k >= st.from && k <= st.to).sort();
+  const wDiff = wIn.length >= 2 ? S.weights[wIn[wIn.length - 1]] - S.weights[wIn[0]] : null;
+  const wKg = lw ? lw.v : pr.weight, hasPhotos = !!(PH.items && PH.items.some(x => x.k >= st.from && x.k <= st.to));
   return `<div class="seg small noprint">${[14, 30, 90].map(n => `<button class="${p === n ? "on" : ""}" data-act="period" data-n="${n}">${n} Tage</button>`).join("")}</div>
+  ${docCard()}
   <section class="card report">
     <h2>Verlaufsbericht Psoriasis</h2>
     <p class="muted">Zeitraum ${esc(fmtDate(st.from))} bis ${esc(fmtDate(st.to))} (${p} Tage), erstellt am ${new Date().toLocaleDateString("de-DE")}</p>
-    <p class="small">${pr.therapy ? "Therapie: " + esc(pr.therapy) + "." : ""}${pr.weight ? " Gewicht " + pr.weight + " kg" : ""}${pr.height ? ", Größe " + pr.height + " cm" : ""}.</p>
+    <p class="small">${pr.therapy ? "Therapie: " + esc(pr.therapy) + "." : ""}${wKg ? " Gewicht " + fmtNum(wKg) + " kg" : ""}${pr.height ? ", Größe " + pr.height + " cm" : ""}${wKg || pr.height ? "." : ""}${S.doc.next && daysUntil(S.doc.next) >= 0 ? " Nächster Termin: " + deDate(S.doc.next) + "." : ""}</p>
+    ${S.doc.questions.length ? `<h3>Meine Fragen</h3><ul>${S.doc.questions.map(q => `<li>${esc(q.t)}</li>`).join("")}</ul>` : ""}
     <h3>Kennzahlen</h3>${statTiles(st)}
     <table class="tbl"><tbody>
       <tr><td>${esc(mname("sk"))} vollständig (3 Dosen)</td><td>${st.skFull} von ${st.skDays} dokumentierten Tagen</td></tr>
@@ -95,17 +128,23 @@ function viewBericht() {
       <tr><td>Eincremen Ø pro Tag</td><td>${st.cremeAvg != null ? fmtNum(st.cremeAvg) : "–"}</td></tr>
       <tr><td>${esc(mname("fo"))}</td><td>${st.enstilarDays} Tage</td></tr>
       <tr><td>Kalorien Ø (Ziel max. ${pr.kcalMax})</td><td>${st.kcalAvg != null ? Math.round(st.kcalAvg) : "–"} kcal, Überschreitung an ${st.kcalOver} Tagen</td></tr>
+      <tr><td>Gewicht</td><td>${lw ? fmtNum(lw.v) + " kg am " + deDate(lw.k) + (wDiff != null ? ", im Zeitraum " + (wDiff > 0 ? "+" : "") + fmtNum(wDiff) + " kg" : "") + (bmi(lw.v) ? ", BMI " + fmtNum(bmi(lw.v)) : "") : "keine Angabe"}</td></tr>
+      <tr><td>Erkältung oder Infekt</td><td>${st.sickDays} Tage</td></tr>
+      <tr><td>Sport oder Bewegung (30 Minuten oder mehr)</td><td>${st.sportDays} Tage</td></tr>
+      <tr><td>Schlaf Ø</td><td>${st.sleepAvg != null ? fmtNum(st.sleepAvg) + " Stunden" : "–"}</td></tr>
     </tbody></table>
     <h3>Verlauf Juckreiz</h3>${itchChart(keys)}
+    ${wIn.length >= 2 ? `<h3>Verlauf Gewicht (kg)</h3>${weightChart(st.from, st.to)}` : ""}
     <h3>Betroffene Stellen</h3>${regs.length ? `<table class="tbl"><thead><tr><th>Stelle</th><th>Tage</th><th>Ø Stufe (1-3)</th></tr></thead><tbody>${regs.map(r => `<tr><td>${esc(r.label)}</td><td>${r.days}</td><td>${fmtNum(r.avg)}</td></tr>`).join("")}</tbody></table>` : `<p>Keine Angaben.</p>`}
     <h3>Juckreiz zwischendurch nach Körperstelle</h3>${epRegTable(st)}
     <h3>Tageszeit des Juckreizes</h3>${daypartTable(st)}
+    ${ui.repPhotos ? reportPhotos(st.from, st.to) : ""}
     <h3>Auffälligkeiten (Hinweise, keine Beweise)</h3>${recs.map(r => `<p class="small">• ${esc(r.t)}</p>`).join("")}
     <h3>Tagesliste</h3>
-    <div class="tablewrap"><table class="tbl tiny"><thead><tr><th>Tag</th><th>Juck</th><th>Blut</th><th>Stress</th><th>Stellen</th><th>Med</th><th>Rot/Gelb</th></tr></thead><tbody>${rowsD.map(k => { const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k); const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => REGION_LABEL[id]).join(", ") : ""; return `<tr><td>${esc(fmtDate(k))}</td><td>${c.itch ?? "–"}</td><td>${c.scratchBlood ? "ja" : ""}</td><td>${c.stress ?? ""}</td><td>${esc(reg)}</td><td>${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} ${m.allegra ? "Al" + m.allegra : ""}</td><td>${s.c.r || 0}/${s.c.y || 0}</td></tr>`; }).join("")}</tbody></table></div>
+    <div class="tablewrap"><table class="tbl tiny"><thead><tr><th>Tag</th><th>Juck</th><th>Blut</th><th>Stress</th><th>Stellen</th><th>Med</th><th>Rot/Gelb</th></tr></thead><tbody>${rowsD.map(k => { const d = S.days[k], c = d.check || {}, m = d.meds || {}, s = daySummary(k); const reg = c.regions ? Object.entries(c.regions).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => REGION_LABEL[id] || id).join(", ") : ""; return `<tr><td>${esc(fmtDate(k))}</td><td>${c.itch ?? "–"}</td><td>${c.scratchBlood ? "ja" : ""}</td><td>${c.stress ?? ""}</td><td>${esc(reg)}</td><td>${m.skM ? "M" : "-"}${m.skN ? "N" : "-"}${m.skE ? "A" : "-"} ${m.allegra ? "Al" + m.allegra : ""}</td><td>${s.c.r || 0}/${s.c.y || 0}</td></tr>`; }).join("")}</tbody></table></div>
     <p class="muted small">Selbst dokumentiert mit Haut-Cockpit. Essensbewertung beruht auf Näherungswerten und Studienlage, keine Diagnose.</p>
   </section>
-  <div class="actions noprint"><button class="btn" data-act="print">Drucken oder als PDF</button><button class="btn ghost" data-act="csv">CSV (Excel)</button></div>`;
+  <div class="actions noprint"><button class="btn" data-act="print">Drucken oder als PDF</button><button class="btn ghost" data-act="csv">CSV (Excel)</button>${hasPhotos ? `<button class="btn ghost" data-act="repPhotos">${ui.repPhotos ? "Fotos im Bericht ausblenden" : "Fotos im Bericht zeigen"}</button>` : ""}</div>`;
 }
 
 /* ---------- Einstellungen ---------- */
@@ -145,7 +184,8 @@ function viewEinstellungen() {
     ${(S.profile.custom || []).length ? S.profile.custom.map(x => `<div class="item"><span class="lamp r-${x.r}"></span><div class="im"><strong>${esc(x.name)}</strong><span class="muted small">${x.kcal} kcal pro 100 ${LIQ_UNITS.includes(x.unit) ? "ml" : "g"}, ${esc(x.unit)} = ${x.portion} ${LIQ_UNITS.includes(x.unit) ? "ml" : "g"}</span></div><button class="ic" data-act="custDel" data-n="${esc(x.name)}" aria-label="Löschen">×</button></div>`).join("") : `<p class="muted">Noch keine eigenen Lebensmittel.</p>`}
     <p class="muted small">${Object.keys(S.profile.alias || {}).length} gemerkte Zuordnungen. <button class="link" data-act="aliasClear">Alle löschen</button></p></section>
   <section class="card"><h2>Daten sichern</h2>
-    <p class="muted small">Alle Daten liegen nur auf diesem Handy. Mache regelmäßig eine Sicherung.</p>
+    <p class="muted small">Alle Daten liegen nur auf diesem Handy. Die Sicherung enthält Tagebuch, Einstellungen und Fotos in einer Datei.</p>
+    <p class="small">Letzte Sicherung: <b>${S.lastBackup ? new Date(S.lastBackup).toLocaleDateString("de-DE") : "noch keine"}</b>. Schutz vor automatischem Löschen durch den Browser: <b>${window.storagePersisted === true ? "aktiv" : window.storagePersisted === false ? "vom Browser nicht zugesagt" : "unbekannt"}</b>.</p>
     <div class="actions"><button class="btn" data-act="backup">Sicherung speichern</button><label class="btn ghost filebtn">Sicherung laden<input type="file" accept="application/json,.json" id="restore" hidden></label></div>
     <button class="link danger" data-act="wipe">${ui.wipe ? "Wirklich alles löschen? Nochmal tippen" : "Alle Daten löschen"}</button></section>
   <section class="card"><h2>Wie bewertet die App?</h2>
@@ -155,7 +195,7 @@ function viewEinstellungen() {
     <p class="small"><span class="lamp r-g"></span> <b>Grün</b> Gemüse, Obst, Hülsenfrüchte, Fisch, Eier, Magerquark, Skyr, Vollkorn, Nüsse, Olivenöl, Wasser.</p>
     <p class="muted small">Grundlage: Gewichtsreduktion (Evidenz A), Alkohol, Zucker, ultra-verarbeitete Produkte, gesättigte Fette (B), Mediterrane Kost und Gluten nur bei Sensitivität (C), Einzeltrigger wie Nachtschatten oder Milch nur aus Umfragen (D). Die Datenbank ist eine Näherung und ersetzt keine Beratung.</p></section>
   <section class="card"><h2>Installation</h2>${inst}</section>
-  <p class="muted small center">Haut-Cockpit Version 1.0 · Produktdaten von Open Food Facts (ODbL)</p>`;
+  <p class="muted small center">Haut-Cockpit Version ${APP_VERSION} · Produktdaten von Open Food Facts (ODbL)</p>`;
 }
 
 /* ---------- Router und Rendering ---------- */
@@ -179,8 +219,9 @@ function render() {
   if (act && !["mealText"].includes(act)) { const el = document.getElementById(act); if (el && el.focus) { try { el.focus({ preventScroll: true }); } catch (e) { /* egal */ } } }
   const fr = $("#mform"); if (fr) fr.addEventListener("submit", e => { e.preventDefault(); manualProduct(fr); });
   const rs = $("#restore"); if (rs) rs.addEventListener("change", restoreBackup);
+  const pf = $("#phFile"); if (pf) pf.addEventListener("change", phFileChosen);
 }
-function openAbendData() { const c = day(ui.date).check; ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", alc: c.alc || (hasAlcDiary(ui.date) ? "low" : "none"), peak: [...(c.peak || [])] } : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", alc: hasAlcDiary(ui.date) ? "low" : "none", peak: [] }; }
+function openAbendData() { ui.abend = abendDraft(ui.date); }
 
 /* ---------- Ereignisse ---------- */
 document.addEventListener("click", async e => {
@@ -189,7 +230,7 @@ document.addEventListener("click", async e => {
   switch (a) {
     case "go": location.hash = el.dataset.r; break;
     case "back": ui.abend = null; location.hash = "heute"; break;
-    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; ui.medPart = null; render(); } break; }
+    case "date": { const n = addDays(ui.date, +el.dataset.d); if (n <= dkey()) { ui.date = n; ui.draft = null; ui.mealTime = null; ui.medPart = null; ui.pick = null; ui.weightText = null; render(); } break; }
     case "med": { const m = day(k).meds; m[el.dataset.m] = !m[el.dataset.m]; save(); render(); break; }
     case "medpart": ui.medPart = el.dataset.p; render(); break;
     case "medp": {
@@ -207,8 +248,43 @@ document.addEventListener("click", async e => {
     case "abendSave": {
       const a2 = ui.abend;
       if (a2.itch == null) { toast("Bitte den Juckreiz von 0 bis 10 wählen"); break; }
-      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", alc: a2.alc || "none", peak: a2.peak || [], ts: Date.now() };
+      day(k).check = { itch: a2.itch, skin: a2.skin, scratchBlood: !!a2.scratchBlood, sleepBad: !!a2.sleepBad, stress: a2.stress, regions: a2.regions, gi: a2.gi, note: a2.note.trim(), smoke: a2.smoke || "none", alc: a2.alc || "none", peak: a2.peak || [], sick: !!a2.sick, sport: !!a2.sport, sleepH: a2.sleepH ?? null, ts: Date.now() };
       save(); ui.abend = null; toast("Abend-Check gespeichert"); location.hash = "heute"; break;
+    }
+    case "mapView": ui.mapView = el.dataset.v; render(); break;
+    case "regDel": delete ui.abend.regions[el.dataset.id]; render(); break;
+    case "abendFor": ui.backTo = ui.date; ui.date = el.dataset.k; openAbendData(); location.hash = "abend"; break;
+    case "skipCheck": S.skipCheck = el.dataset.k; save(); render(); break;
+    case "toBericht": ui.verlaufTab = "bericht"; if (route() === "verlauf") render(); else location.hash = "verlauf"; break;
+    case "backupLater": S.backupSnooze = Date.now() + 3 * 864e5; save(); render(); break;
+    case "weightSave": {
+      const v = parseFloat(String(ui.weightText ?? ($("#wIn") ? $("#wIn").value : "")).replace(",", "."));
+      if (!(v >= 30 && v <= 300)) { toast("Bitte das Gewicht in kg eintragen, z. B. 98,4"); break; }
+      S.weights[k] = Math.round(v * 10) / 10; S.profile.weight = lastWeight().v;
+      ui.weightText = null; save(); toast("Gewicht gespeichert"); render(); break;
+    }
+    case "weightDel": { delete S.weights[el.dataset.k]; const lw = lastWeight(); if (lw) S.profile.weight = lw.v; save(); render(); break; }
+    case "quick": {
+      const it = frequentItems(8).find(i => i.name === el.dataset.n); if (!it) break;
+      const slot = ui.slot || autoSlot(); addToMeal(k, slot, ui.mealTime || defaultMealTime(slot, k), [cloneItem(it)]);
+      save(); toast("Hinzugefügt: " + it.name); render(); break;
+    }
+    case "likeYesterday": {
+      const slot = ui.slot || autoSlot(), items = ((S.days[addDays(k, -1)] || {}).meals || []).filter(m => m.slot === slot).flatMap(m => m.items.map(cloneItem));
+      if (!items.length) break;
+      addToMeal(k, slot, ui.mealTime || defaultMealTime(slot, k), items); save(); toast(items.length + (items.length === 1 ? " Eintrag" : " Einträge") + " von gestern übernommen"); render(); break;
+    }
+    case "docQAdd": { const t = (ui.qText || "").trim(); if (!t) { toast("Bitte erst die Frage eintippen"); break; } S.doc.questions.push({ id: uid(), t }); ui.qText = ""; save(); render(); break; }
+    case "docQDel": S.doc.questions = S.doc.questions.filter(q => q.id !== el.dataset.id); save(); render(); break;
+    case "repPhotos": ui.repPhotos = !ui.repPhotos; render(); break;
+    case "phOpen": { ui.phOpen = el.dataset.id; ui.phDel = null; render(); const v = $("#phview"); if (v) v.scrollIntoView({ block: "start" }); break; }
+    case "phClose": ui.phOpen = null; render(); break;
+    case "phSave": { const p = (PH.items || []).find(x => x.id === el.dataset.id); if (p) phDownload(p); break; }
+    case "phDel": {
+      const id = el.dataset.id;
+      if (ui.phDel === id) { try { await phRemove(id); toast("Foto gelöscht"); } catch (x) { toast("Löschen fehlgeschlagen"); } ui.phDel = null; ui.phOpen = null; }
+      else { ui.phDel = id; setTimeout(() => { ui.phDel = null; }, 5000); }
+      render(); break;
     }
     case "slot": ui.slot = el.dataset.s; if (ui.mealTimeAuto) ui.mealTime = defaultMealTime(ui.slot, ui.date); render(); break;
     case "parse": parseDraft(); break;
@@ -272,8 +348,8 @@ document.addEventListener("click", async e => {
     case "csv": downloadFile("haut-cockpit-" + dkey() + ".csv", csvExport(), "text/csv;charset=utf-8"); break;
     case "watch": { const w = el.dataset.w, arr = S.profile.watch, i = arr.indexOf(w); if (i >= 0) arr.splice(i, 1); else arr.push(w); save(); render(); break; }
     case "ics": downloadFile("haut-cockpit-abend-check.ics", buildICS(S.profile.reminder || "21:00", S.profile.appUrl || location.href), "text/calendar"); toast("Datei öffnen und in den Kalender übernehmen"); break;
-    case "backup": downloadFile("haut-cockpit-sicherung-" + dkey() + ".json", JSON.stringify(S), "application/json"); break;
-    case "wipe": if (ui.wipe) { localStorage.removeItem(KEY); S = loadState(); ui.wipe = false; toast("Alle Daten gelöscht"); } else { ui.wipe = true; setTimeout(() => { ui.wipe = false; }, 5000); } render(); break;
+    case "backup": await backupAll(); render(); break;
+    case "wipe": if (ui.wipe) { clearTimeout(saveTimer); localStorage.removeItem(KEY); S = loadState(); ui.wipe = false; try { await phClear(); } catch (x) { /* kein Foto-Speicher */ } toast("Alle Daten gelöscht"); setTimeout(() => location.reload(), 800); } else { ui.wipe = true; setTimeout(() => { ui.wipe = false; }, 5000); } render(); break;
     case "rt": ui.rezTab = el.dataset.t; render(); break;
     case "dbf": ui.dbf = el.dataset.f; render(); break;
     case "hidefruit": S.profile.hideFruit = !S.profile.hideFruit; save(); render(); break;
@@ -298,6 +374,14 @@ document.addEventListener("input", e => {
     case "note": ui.abend.note = t.value; break;
     case "ean": ui.eanText = t.value; break;
     case "scanAmt": case "scanEach": { const v = parseFloat(t.value.replace(",", ".")); if (ui.scanProduct) { ui.scanProduct[t.dataset.bind === "scanAmt" ? "amount" : "each"] = v > 0 ? v : 0; const el = $("#scanKcal"); if (el) el.textContent = qtyInfo(ui.scanProduct); } break; }
+    case "weightText": ui.weightText = t.value; break;
+    case "qText": ui.qText = t.value; break;
+    case "phNote": ui.phNote = t.value; break;
+    case "docNext": {
+      ui.docNextText = t.value; const dk = parseDeDate(t.value);
+      if (dk) { S.doc.next = dk; save(); } else if (!t.value.trim()) { S.doc.next = ""; save(); }
+      const el = $("#docInfo"); if (el) el.textContent = docInfo(); break;
+    }
     case "pweight": S.profile.weight = parseFloat(t.value.replace(",", ".")) || null; save(); break;
     case "pheight": S.profile.height = parseFloat(t.value.replace(",", ".")) || null; save(); break;
     case "pkcal": S.profile.kcalMax = parseInt(t.value, 10) || 1900; save(); break;
@@ -314,6 +398,8 @@ document.addEventListener("change", e => {
   if (e.target.dataset.bind === "slot") { ui.slot = e.target.value; if (ui.mealTimeAuto) { ui.mealTime = defaultMealTime(ui.slot, ui.date); const el = $("#st"); if (el) el.value = ui.mealTime; } }
   if (e.target.dataset.bind === "scanUnit" && ui.scanProduct) { ui.scanProduct.unit = e.target.value; ui.scanProduct.amount = e.target.value === "g" ? 100 : 1; render(); }
   if (e.target.dataset.actInput === "draftQ") render();
+  if (e.target.dataset.bind === "phRegion") ui.phRegion = e.target.value;
+  if (e.target.dataset.bind === "phFilter") { ui.phFilter = e.target.value; render(); }
   if (e.target.dataset.actChange === "draftU") {
     const it = ui.draft.find(x => x.id === e.target.dataset.id), food = it && FOODS.find(f => f.name === it.food);
     if (it && food) { it.mode = e.target.value; it.qty = it.mode === "g" ? Math.round(it.g) : Math.round(it.g / food.portion * 10) / 10; recalcItem(it); render(); }
@@ -323,16 +409,40 @@ document.addEventListener("change", e => {
 function restoreBackup(e) {
   const f = e.target.files[0]; if (!f) return;
   const rd = new FileReader();
-  rd.onload = () => { try { const j = JSON.parse(rd.result); if (!j.days || !j.profile) throw 0; S = Object.assign(defaults(), j); save(); toast("Sicherung geladen"); render(); } catch (x) { toast("Datei ist keine gültige Sicherung"); } };
+  rd.onload = async () => {
+    try {
+      const j = JSON.parse(rd.result); if (!j.days || !j.profile) throw 0;
+      const photos = Array.isArray(j.photos) ? j.photos : []; delete j.photos;
+      clearTimeout(saveTimer);
+      localStorage.setItem(KEY, JSON.stringify(j));
+      S = loadState();
+      let n = 0;
+      if (photos.length) { toast("Fotos werden geladen"); n = await phRestore(photos); }
+      toast("Sicherung geladen" + (n ? " (" + n + " Fotos)" : ""));
+      // Neu laden, damit eigene Lebensmittel und Einstellungen aus der Sicherung vollständig eingelesen werden
+      setTimeout(() => location.reload(), 900);
+    } catch (x) { toast("Datei ist keine gültige Sicherung"); }
+  };
   rd.readAsText(f);
 }
 
-window.addEventListener("hashchange", () => { if (route() !== "abend") ui.abend = null; render(); });
+window.addEventListener("hashchange", () => {
+  if (route() !== "abend") { ui.abend = null; if (ui.backTo) { ui.date = ui.backTo; ui.backTo = null; } }
+  render();
+});
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); window.deferredInstall = e; if (route() === "verlauf") render(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { if (ui.date !== dkey() && !ui.abend && lastRoute !== "scan") { ui.date = dkey(); } if (!ui.scanning) render(); } });
 
 /* ---------- Start ---------- */
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* ohne Offline-Modus weiter */ });
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
+if ("serviceWorker" in navigator) {
+  const hadCtl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    // Beim Zurückholen der App nach einer neuen Version suchen
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => { /* offline */ }); });
+  }).catch(() => { /* ohne Offline-Modus weiter */ });
+  // Eine neue Version wurde im Hintergrund geladen: einmal neu laden, sofern gerade nichts Ungespeichertes offen ist
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadCtl && !ui.abend && !ui.draft && !ui.draftText && !ui.scanning && !PH.busy) location.reload(); });
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(ok => { window.storagePersisted = ok; }).catch(() => { });
 if (location.hash === "#abend") openAbendData();
 render();

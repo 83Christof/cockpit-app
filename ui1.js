@@ -3,7 +3,8 @@
 
 const ui = {
   date: dkey(), slot: null, draft: null, draftText: "", scanning: false, scanBusy: false, scanErr: "", scanProduct: null, scanManual: false,
-  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null, pick: null, epRegions: {}, epMapOpen: false
+  recipeFilter: "alle", rezTab: "rezepte", dbq: "", dbf: "alle", verlaufTab: "auswertung", period: 30, corrLag: 1, abend: null, eanText: "", flash: null, mealTime: null, mealTimeAuto: true, epItch: null, epTime: null, lastCode: null, lastAdd: null, medPart: null, pick: null, epRegions: {}, epMapOpen: false,
+  mapView: "f", weightText: null, backTo: null, phRegion: "", phNote: "", phFilter: "alle", phOpen: null, phDel: null, repPhotos: true, docNextText: null, qText: ""
 };
 const LIGHT = { g: "Passt", y: "In Maßen", r: "Meiden", u: "Unklar" };
 const SLOTS = ["Frühstück", "Mittagessen", "Abendessen", "Snack"];
@@ -58,6 +59,47 @@ function medPanel(m) {
 }
 
 /* ---------- Cockpit ---------- */
+/* Hinweise oben im Cockpit: fehlender Abend-Check von gestern, naher Arzttermin, alte Datensicherung */
+function cockpitBanners() {
+  const out = [], yk = addDays(dkey(), -1), yd = S.days[yk];
+  const used = Object.keys(S.days).some(x => x <= yk && (S.days[x].check || S.days[x].meals.length));
+  if (used && (!yd || !yd.check) && S.skipCheck !== yk) out.push(`<div class="banner"><strong>Abend-Check von gestern fehlt</strong><span>Ohne den Wert fehlt der Tag in der Auswertung.</span><div class="row"><button class="btn small" data-act="abendFor" data-k="${yk}">Nachtragen</button><button class="btn small ghost" data-act="skipCheck" data-k="${yk}">Überspringen</button></div></div>`);
+  const dn = S.doc.next ? daysUntil(S.doc.next) : null;
+  if (dn != null && dn >= 0 && dn <= 7) out.push(`<div class="banner info"><strong>Arzttermin ${dn === 0 ? "heute" : dn === 1 ? "morgen" : "in " + dn + " Tagen"}</strong><span>Bericht und Fragen vorbereiten.</span><button class="btn small" data-act="toBericht">Zum Arztbericht</button></div>`);
+  const nDays = Object.keys(S.days).filter(x => S.days[x].check || S.days[x].meals.length).length;
+  const since = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 864e5) : null;
+  if (nDays >= 7 && (since == null || since >= 14) && (S.backupSnooze || 0) < Date.now()) out.push(`<div class="banner info"><strong>Datensicherung</strong><span>${since == null ? "Du hast noch keine Sicherung gemacht." : "Die letzte Sicherung ist " + since + " Tage alt."} Die Daten liegen nur auf diesem Handy.</span><div class="row"><button class="btn small" data-act="backup">Jetzt sichern</button><button class="btn small ghost" data-act="backupLater">Später</button></div></div>`);
+  return out.join("");
+}
+
+/* Letzte 7 Tage gegen die 7 Tage davor */
+function weekCard() {
+  const a = periodStats(7), b = periodStats(7, addDays(dkey(), -7));
+  if (!a.checkedN && !b.checkedN) return "";
+  const num = v => v == null ? "–" : fmtNum(v);
+  const d = (a.itchAvg != null && b.itchAvg != null) ? a.itchAvg - b.itchAvg : null;
+  const row = (l, x, y, cls) => `<tr class="${cls || ""}"><td>${l}</td><td>${x}</td><td>${y}</td></tr>`;
+  return `<section class="card"><h2>Wochenrückblick</h2>
+    ${d != null ? `<p class="small">${Math.abs(d) < 1 ? "Juckreiz etwa gleich wie in der Vorwoche." : d < 0 ? "Juckreiz im Mittel um " + fmtNum(-d) + " Punkte niedriger als in der Vorwoche." : "Juckreiz im Mittel um " + fmtNum(d) + " Punkte höher als in der Vorwoche."}</p>` : `<p class="muted small">Für den Vergleich braucht es Abend-Checks in beiden Wochen.</p>`}
+    <div class="tablewrap"><table class="tbl"><thead><tr><th>Kennzahl</th><th>Letzte 7 Tage</th><th>7 Tage davor</th></tr></thead><tbody>
+    ${row("Juckreiz Ø", num(a.itchAvg), num(b.itchAvg), d != null && d >= 1 ? "bad" : d != null && d <= -1 ? "good" : "")}
+    ${row("Tage mit Juckreiz ab 7", a.itchHigh, b.itchHigh)}
+    ${row("Blutig gekratzt (Tage)", a.bloody, b.bloody)}
+    ${row("Tage mit rotem Eintrag", a.redDays, b.redDays)}
+    ${row("Alkohol (Tage)", a.alcDays, b.alcDays)}
+    ${row("Eincremen Ø pro Tag", num(a.cremeAvg), num(b.cremeAvg))}
+    ${row(esc(mname("fo")) + " (Tage)", a.enstilarDays, b.enstilarDays)}
+    ${row("Abend-Checks", a.checkedN + " von 7", b.checkedN + " von 7")}
+    </tbody></table></div></section>`;
+}
+
+function weightCard() {
+  const w = lastWeight(), t = S.weights[ui.date];
+  return `<section class="card"><div class="row between"><h2>Gewicht</h2>${w ? `<span class="muted small">zuletzt ${fmtNum(w.v)} kg (${esc(fmtDate(w.k))})</span>` : ""}</div>
+    <div class="inl"><input id="wIn" inputmode="decimal" placeholder="kg, z. B. 98,4" value="${esc(ui.weightText ?? (t != null ? String(t).replace(".", ",") : ""))}" data-bind="weightText" aria-label="Gewicht in Kilogramm"><button class="btn small" data-act="weightSave">Speichern</button></div>
+    <p class="muted small">Am besten morgens, einmal pro Woche reicht. Die Kurve steht unter Verlauf, Auswertung.</p></section>`;
+}
+
 function viewHeute() {
   const k = ui.date, d = day(k), s = daySummary(k), m = d.meds, c = d.check;
   const kmax = S.profile.kcalMax, pt = protTarget();
@@ -66,6 +108,7 @@ function viewHeute() {
   const late = isToday() && !c && new Date().getHours() >= parseInt((S.profile.reminder || "21:00").split(":")[0], 10);
   return `${dateNav()}
   ${late ? `<div class="banner" role="alert"><strong>Abend-Check offen</strong><span>Wie war dein Tag mit der Schuppenflechte?</span><button class="btn small" data-act="abend">Jetzt eintragen</button></div>` : ""}
+  ${isToday() ? cockpitBanners() : ""}
   <section class="card">
     <div class="row between"><h2>Essens-Ampel</h2><span class="muted">${s.items.length} Einträge</span></div>
     ${s.light ? `<div class="bigl r-${s.light}"><span class="lamp big r-${s.light}"></span><div><strong>${lightTxt[s.light]}</strong><div class="muted">${s.c.g || 0} grün · ${s.c.y || 0} gelb · ${s.c.r || 0} rot${s.unknown ? " · " + s.unknown + " ungeprüft" : ""}</div></div></div>`
@@ -83,8 +126,8 @@ function viewHeute() {
     <div class="label">Uhrzeit</div>${timeField("epTime", ui.epTime || nowTime())}
     <div class="label">Wo juckt es gerade?</div>
     <button class="btn ghost small" data-act="epMap">${ui.epMapOpen ? "Körperkarte ausblenden" : "Körperstelle wählen"}</button>
-    ${ui.epMapOpen ? `<div class="maps"><div><div class="mapl">Vorne</div>${bodyMap("f", ui.epRegions, "epreg")}</div><div><div class="mapl">Hinten</div>${bodyMap("b", ui.epRegions, "epreg")}</div></div><p class="muted small">Stelle antippen, erneut tippen entfernt sie.</p>` : ""}
-    <div class="chips">${Object.keys(ui.epRegions).length ? Object.keys(ui.epRegions).map(id => `<span class="chip l1">${esc(REGION_LABEL[id] || id)}</span>`).join("") : `<span class="muted small">Keine Stelle gewählt (optional).</span>`}</div>
+    ${ui.epMapOpen ? `${mapBox(ui.epRegions, "epreg")}<p class="muted small">Stelle antippen, erneut tippen entfernt sie.</p>` : ""}
+    <div class="chips">${Object.keys(ui.epRegions).length ? Object.keys(ui.epRegions).map(id => `<button class="chip l1" data-act="epreg" data-id="${id}">${esc(REGION_LABEL[id] || id)} ×</button>`).join("") : `<span class="muted small">Keine Stelle gewählt (optional).</span>`}</div>
     <button class="btn wide" data-act="epAdd">Eintragen</button>
     ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong>${(e.regions || []).length ? `<span class="muted small">${esc(e.regions.map(id => REGION_LABEL[id] || id).join(", "))}</span>` : ""}</div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
   </section>
@@ -97,44 +140,67 @@ function viewHeute() {
   </section>
   <section class="card">
     <div class="row between"><h2>Abend-Check</h2>${c ? `<span class="pill r-g">erledigt</span>` : `<span class="pill r-u">offen</span>`}</div>
-    ${c ? `<p>Juckreiz <b>${c.itch}/10</b>${c.scratchBlood ? ", blutig gekratzt" : ""}${c.regions ? ", Regionen: " + esc(Object.entries(c.regions).filter(([, v]) => v > 0).map(([id]) => REGION_LABEL[id]).slice(0, 4).join(", ") || "keine") : ""}.</p>`
+    ${c ? `<p>Juckreiz <b>${c.itch}/10</b>${c.scratchBlood ? ", blutig gekratzt" : ""}${c.regions ? ", Regionen: " + esc(Object.entries(c.regions).filter(([, v]) => v > 0).map(([id]) => REGION_LABEL[id] || id).slice(0, 4).join(", ") || "keine") : ""}.</p>`
       : `<p class="muted">Juckreiz, Hautzustand und Körperstellen. Dauert eine Minute.</p>`}
     <button class="btn ${c ? "ghost" : ""}" data-act="abend">${c ? "Bearbeiten" : "Abend-Check starten"}</button>
-  </section>`;
+  </section>
+  ${isToday() ? weekCard() : ""}
+  ${weightCard()}
+  <p class="muted small center">Haut-Cockpit Version ${APP_VERSION}</p>`;
 }
 
 /* ---------- Abend-Check ---------- */
-/* Körperkarte: gerundete Gliedmaßen und Rumpf, Vorder- und Rückseite haben eigene Stellen (z. B. Oberschenkel vorne und hinten) */
-function capsule(x1, y1, r1, x2, y2, r2) {
-  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, f = n => n.toFixed(1);
-  const a = [x1 + nx * r1, y1 + ny * r1], b = [x2 + nx * r2, y2 + ny * r2], c = [x2 - nx * r2, y2 - ny * r2], d = [x1 - nx * r1, y1 - ny * r1];
-  return `M${f(a[0])} ${f(a[1])} L${f(b[0])} ${f(b[1])} A${r2} ${r2} 0 0 0 ${f(c[0])} ${f(c[1])} L${f(d[0])} ${f(d[1])} A${r1} ${r1} 0 0 0 ${f(a[0])} ${f(a[1])} Z`;
+/* Körperkarte: gerundete Gliedmaßen und Rumpf. Vorder- und Rückseite haben eigene Stellen,
+   Oberarm, Unterarm und Oberschenkel sind zusätzlich längs in innen und außen geteilt.
+   half 1 liefert die im Bild linke Hälfte einer nach unten laufenden Gliedmaße, -1 die rechte, 0 die ganze Form */
+function capsule(x1, y1, r1, x2, y2, r2, half = 0) {
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+  const P = (x, y) => x.toFixed(1) + " " + y.toFixed(1);
+  const a = P(x1 + nx * r1, y1 + ny * r1), b = P(x2 + nx * r2, y2 + ny * r2), c = P(x2 - nx * r2, y2 - ny * r2), d = P(x1 - nx * r1, y1 - ny * r1);
+  const t1 = P(x1 - ux * r1, y1 - uy * r1), t2 = P(x2 + ux * r2, y2 + uy * r2);
+  if (half > 0) return `M${a} L${b} A${r2} ${r2} 0 0 0 ${t2} L${t1} A${r1} ${r1} 0 0 0 ${a} Z`;
+  if (half < 0) return `M${t2} A${r2} ${r2} 0 0 0 ${c} L${d} A${r1} ${r1} 0 0 0 ${t1} Z`;
+  return `M${a} L${b} A${r2} ${r2} 0 0 0 ${c} L${d} A${r1} ${r1} 0 0 0 ${a} Z`;
 }
 function bodyMap(view, regions, act = "reg") {
-  const f = view === "f", sfx = f ? "" : "H";
+  const f = view === "f", sfx = f ? "" : "H", C = 120;
   const cls = id => "z l" + (regions[id] || 0), bg = [];
-  const zp = (id, d) => bg.push(`<path class="bgz" d="${d}"/>`) && `<path class="${cls(id)}" data-act="${act}" data-id="${id}" d="${d}"><title>${esc(REGION_LABEL[id])}</title></path>`;
-  const ze = (id, cx, cy, rx, ry) => bg.push(`<ellipse class="bgz" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`) && `<ellipse class="${cls(id)}" data-act="${act}" data-id="${id}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${esc(REGION_LABEL[id])}</title></ellipse>`;
+  const tt = id => `<title>${esc(REGION_LABEL[id])}</title>`;
+  const zone = (id, d) => `<path class="${cls(id)}" data-act="${act}" data-id="${id}" d="${d}">${tt(id)}</path>`;
+  const zp = (id, d) => { bg.push(`<path class="bgz" d="${d}"/>`); return zone(id, d); };
+  const ze = (id, cx, cy, rx, ry) => { bg.push(`<ellipse class="bgz" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`); return `<ellipse class="${cls(id)}" data-act="${act}" data-id="${id}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}">${tt(id)}</ellipse>`; };
   // Person-links liegt von vorn rechts im Bild, von hinten links im Bild
-  const px = (side, x) => ((side === "L") === f) ? x : 200 - x;
+  const px = (side, x) => ((side === "L") === f) ? x : 2 * C - x;
+  // Gliedmaße längs teilen: innen zeigt zur Körpermitte, außen nach außen
+  const split = (base, s, x1, y1, r1, x2, y2, r2) => {
+    const X1 = px(s, x1), X2 = px(s, x2), inner = X1 > C ? 1 : -1;
+    bg.push(`<path class="bgz" d="${capsule(X1, y1, r1, X2, y2, r2)}"/>`);
+    return zone(base + s + sfx + "i", capsule(X1, y1, r1, X2, y2, r2, inner)) + zone(base + s + sfx + "a", capsule(X1, y1, r1, X2, y2, r2, -inner));
+  };
   const arm = s => {
-    const X = x => px(s, x), S = [138, 77], E = [152, 127], W = [157, 173], H = [160, 201];
-    const parts = [zp("armO" + s + sfx, capsule(X(S[0]), S[1], 11, X(E[0]), E[1] - 3, 8.5)), zp("armU" + s + sfx, capsule(X(E[0]), E[1] + 4, 8, X(W[0]), W[1], 6)), zp("hand" + s + sfx, capsule(X(W[0]), W[1] + 5, 7, X(H[0]), H[1] + 8, 5.5))];
-    if (!f) parts.push(ze("ell" + s, X(E[0]), E[1], 9, 7));
-    return parts;
+    const X = x => px(s, x);
+    let o = split("armO", s, 162, 86, 14, 176.5, 134, 12) + split("armU", s, 181.5, 154, 11.5, 190, 198, 9) + zp("hand" + s + sfx, capsule(X(191.5), 210, 9, X(195), 232, 7.5));
+    if (!f) o += ze("ell" + s, X(179.5), 144, 12.5, 9.5);
+    return o;
   };
   const leg = s => {
-    const X = x => px(s, x), Hp = [117, 202], K = [117, 288], A = [115, 354], T = [119, 378];
-    return [zp("beinO" + s + sfx, capsule(X(Hp[0]), Hp[1], 16, X(K[0]), K[1] - 13, 12)), ze("kni" + s + sfx, X(K[0]), K[1], 12, 12), zp("beinU" + s + sfx, capsule(X(K[0]), K[1] + 13, 11, X(A[0]), A[1], 7)), zp("fuss" + s + sfx, capsule(X(A[0]), A[1] + 6, 7, X(T[0]), T[1] + (f ? 6 : 2), 6))];
+    const X = x => px(s, x);
+    return split("beinO", s, 141, 228, 19.5, 140, 298, 15) + ze("kni" + s + sfx, X(140), 318, 14.5, 13.5) + zp("beinU" + s + sfx, capsule(X(140), 342, 13, X(138), 388, 8.5)) + zp("fuss" + s + sfx, capsule(X(138), 399, 8.5, X(f ? 143 : 138), f ? 412 : 408, 7.5));
   };
-  const neck = f ? zp("hals", "M92 52 L108 52 L110 66 Q100 71 90 66 Z") : zp("nacken", "M92 50 L108 50 L110 66 Q100 71 90 66 Z");
-  const chest = "M72 70 Q100 63 128 70 L130 118 Q100 125 70 118 Z";
-  const waist = "M70 121 Q100 128 130 121 L127 168 Q100 175 73 168 Z";
+  const chest = "M86 76 Q120 67 154 76 L156 127 Q120 135 84 127 Z";
+  // Becken vorne nur als Umriss, nicht wählbar
+  if (f) bg.push(`<path class="bgz" d="M85 196 L155 196 L158 226 Q120 240 82 226 Z"/>`);
   const body = f
-    ? [ze("gesicht", 100, 30, 17, 21), neck, zp("brust", chest), zp("bauch", waist), zp("leiste", "M74 171 Q100 178 126 171 L122 199 Q100 207 78 199 Z")]
-    : [ze("kopfhaut", 100, 28, 17, 19), neck, zp("rueckenO", chest), zp("rueckenU", waist), zp("gesaess", "M72 171 Q100 178 128 171 L133 207 Q100 219 67 207 Z")];
-  const limbs = arm("L").join("") + arm("R").join("") + leg("L").join("") + leg("R").join("");
-  return `<svg viewBox="0 0 200 392" class="body" role="group" aria-label="Körper ${f ? "Vorderseite" : "Rückseite"}">${bg.join("")}${body.join("")}${limbs}</svg>`;
+    ? [ze("gesicht", 120, 32, 19, 23), zp("hals", "M111 53 L129 53 L132 70 Q120 76 108 70 Z"), zp("brust", chest), zp("bauch", "M84 130 Q120 138 156 130 L155 202 Q120 212 85 202 Z")]
+    : [ze("kopfhaut", 120, 30, 19, 21), zp("nacken", "M111 50 L129 50 L132 70 Q120 76 108 70 Z"), zp("rueckenO", chest), zp("rueckenU", "M84 130 Q120 138 156 130 L155 178 Q120 186 85 178 Z"), zp("gesaess", "M85 181 Q120 189 155 181 L160 226 Q120 240 80 226 Z")];
+  const limbs = arm("L") + arm("R") + leg("L") + leg("R");
+  return `<svg viewBox="0 0 240 424" class="body" role="group" aria-label="Körper ${f ? "Vorderseite" : "Rückseite"}">${bg.join("")}${body.join("")}${limbs}</svg>`;
+}
+/* Eine große Ansicht mit Umschalter Vorne/Hinten, damit auch die geteilten Flächen gut zu treffen sind */
+function mapBox(regions, act) {
+  const v = ui.mapView, n = w => REGIONS.filter(r => r.v === w && regions[r.id]).length;
+  return `<div class="seg small mapseg">${[["f", "Vorne"], ["b", "Hinten"]].map(([id, l]) => `<button class="${v === id ? "on" : ""}" data-act="mapView" data-v="${id}">${l}${n(id) ? " (" + n(id) + ")" : ""}</button>`).join("")}</div>
+  <div class="mapone">${bodyMap(v, regions, act)}</div>`;
 }
 
 function viewAbend() {
@@ -150,16 +216,22 @@ function viewAbend() {
     ${scale("skin", "Wie war die Haut heute (Rötung, Schuppung)?", "0 ruhig", "10 sehr aktiv")}
     ${yn("scratchBlood", "Hast du dich blutig gekratzt?")}
     ${yn("sleepBad", "Juckreiz hat den Schlaf gestört?")}
+  </section>
+  <section class="card">
+    <h2>Einflüsse heute</h2>
     <div class="field"><div class="label">Zigarre geraucht heute?</div><div class="togs two">${[["none", "Nein"], ["cigar", "Ja"]].map(([v, l]) => `<button class="tog ${(a.smoke === v || (v === "cigar" && a.smoke === "cigarette")) ? "on" : ""}" data-act="set" data-k="smoke" data-v="${v}"><span>${l}</span></button>`).join("")}</div></div>
     <div class="field"><div class="label">Alkohol getrunken heute?</div><div class="togs">${[["none", "Nein"], ["low", "1 bis 2 Getränke"], ["high", "3 oder mehr"]].map(([v, l]) => `<button class="tog ${a.alc === v ? "on" : ""}" data-act="set" data-k="alc" data-v="${v}"><span>${l}</span></button>`).join("")}</div>${hasAlcDiary(k) ? `<p class="muted small">Im Tagebuch steht heute Alkohol.</p>` : ""}</div>
     <div class="field"><div class="label">Stress heute: <b>${a.stress}</b> von 10</div><input type="range" min="0" max="10" step="1" value="${a.stress}" id="stress" data-bind="stress" aria-label="Stress"></div>
+    ${yn("sick", "Erkältung oder Infekt?")}
+    ${yn("sport", "Sport oder mindestens 30 Minuten Bewegung?")}
+    <div class="field"><div class="label">Schlaf letzte Nacht (Stunden, optional)</div><div class="togs">${[[4, "unter 5"], [5, "5"], [6, "6"], [7, "7"], [8, "8"], [9, "9 oder mehr"]].map(([v, l]) => `<button class="tog ${a.sleepH === v ? "on" : ""}" data-act="set" data-k="sleepH" data-v="${v}"><span>${l}</span></button>`).join("")}</div></div>
   </section>
   <section class="card">
     <h2>Wo war der Juckreiz am stärksten?</h2>
-    <p class="muted small">Stelle antippen: 1 leicht, 2 mittel, 3 stark, 4x aus.</p>
-    <div class="maps"><div><div class="mapl">Vorne</div>${bodyMap("f", a.regions)}</div><div><div class="mapl">Hinten</div>${bodyMap("b", a.regions)}</div></div>
-    <div class="chips">${sel.length ? sel.map(([id, v]) => `<span class="chip l${v}">${esc(REGION_LABEL[id])} ${v}</span>`).join("") : `<span class="muted">Noch keine Stelle gewählt.</span>`}</div>
-    <p class="muted small">Links und rechts beziehen sich auf deinen Körper.</p>
+    <p class="muted small">Stelle antippen: 1 leicht, 2 mittel, 3 stark, beim vierten Tippen aus. Oberarm, Unterarm und Oberschenkel sind in innen und außen geteilt.</p>
+    ${mapBox(a.regions, "reg")}
+    <div class="chips">${sel.length ? sel.map(([id, v]) => `<button class="chip l${v}" data-act="regDel" data-id="${id}">${esc(REGION_LABEL[id] || id)} ${v} ×</button>`).join("") : `<span class="muted">Noch keine Stelle gewählt.</span>`}</div>
+    <p class="muted small">Links und rechts beziehen sich auf deinen Körper. Ein Tipp auf eine Stelle in der Liste entfernt sie.</p>
   </section>
   <section class="card">
     <h2>Wann war der Juckreiz am stärksten?</h2>
@@ -179,11 +251,11 @@ function viewAbend() {
   </section>
   <div class="stickybar"><button class="btn" data-act="abendSave">Speichern</button></div>`;
 }
-function openAbend() {
-  const c = day(ui.date).check;
-  ui.abend = c ? { itch: c.itch, skin: c.skin ?? 0, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", alc: c.alc || (hasAlcDiary(ui.date) ? "low" : "none"), peak: [...(c.peak || [])] }
-    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", alc: hasAlcDiary(ui.date) ? "low" : "none", peak: [] };
-  location.hash = "abend";
+/* Arbeitskopie des Abend-Checks für einen Tag (vorhandene Werte oder leere Vorlage) */
+function abendDraft(k) {
+  const c = day(k).check, alc0 = hasAlcDiary(k) ? "low" : "none";
+  return c ? { itch: c.itch, skin: c.skin ?? null, scratchBlood: !!c.scratchBlood, sleepBad: !!c.sleepBad, stress: c.stress ?? 0, regions: { ...(c.regions || {}) }, gi: [...(c.gi || [])], note: c.note || "", smoke: c.smoke || "none", alc: c.alc || alc0, peak: [...(c.peak || [])], sick: c.sick ?? null, sport: c.sport ?? null, sleepH: c.sleepH ?? null }
+    : { itch: null, skin: null, scratchBlood: null, sleepBad: null, stress: 0, regions: {}, gi: [], note: "", smoke: "none", alc: alc0, peak: [], sick: null, sport: null, sleepH: null };
 }
 
 /* ---------- Essen ---------- */
@@ -244,8 +316,18 @@ function pickBox() {
     <div class="actions"><button class="btn small ghost" data-act="newFood">Neues Lebensmittel anlegen</button><button class="btn small ghost" data-act="pickClose">Abbrechen</button></div></section>`;
 }
 
+/* Schnellauswahl: Mahlzeit von gestern übernehmen oder häufig Gegessenes mit einem Tipp eintragen */
+function quickAdd(k) {
+  const fr = frequentItems(8), ym = ((S.days[addDays(k, -1)] || {}).meals || []).filter(m => m.slot === ui.slot);
+  if (!fr.length && !ym.length) return "";
+  const yNames = ym.flatMap(m => m.items.map(i => i.name));
+  return `<div class="quick"><div class="label">Schnell eintragen (ein Tipp fügt hinzu)</div>
+    ${ym.length ? `<button class="btn small ghost wide left" data-act="likeYesterday">Wie gestern: ${esc(yNames.slice(0, 3).join(", "))}${yNames.length > 3 ? " und " + (yNames.length - 3) + " weitere" : ""}</button>` : ""}
+    ${fr.length ? `<div class="chips">${fr.map(i => `<button class="chip btnchip" data-act="quick" data-n="${esc(i.name)}">${dot(i.r)}${esc(i.name)}${i.g ? " · " + i.g + " " + itemUnit(i) : ""}</button>`).join("")}</div>` : ""}</div>`;
+}
+
 function viewEssen() {
-  const k = ui.date, d = day(k), s = daySummary(k);
+  const k = ui.date, d = day(k), s = daySummary(k), dups = dupIds(k);
   ensureMealTime();
   const draft = ui.draft;
   return `${dateNav()}
@@ -257,6 +339,7 @@ function viewEssen() {
     <textarea id="mealText" rows="3" data-bind="mealText" placeholder="z. B. 3 Roggenbrötchen, 2 Teller Gulaschsuppe, 200 g Skyr">${esc(ui.draftText)}</textarea>
     <p class="muted small">Die Menge schreibst du einfach davor: "3 Roggenbrötchen", "2 Teller Gulaschsuppe", "200 g Skyr", "1 Glas Milch", "halber Teller Chili", "große Portion Reis". Nach "Auswerten" kannst du Menge und Einheit in jeder Zeile noch ändern.</p>
     <div class="actions"><button class="btn" data-act="parse">Auswerten</button>${draft ? `<button class="btn ghost" data-act="draftClear">Verwerfen</button>` : ""}</div>
+    ${draft ? "" : quickAdd(k)}
   </section>
   ${ui.pick ? pickBox() : ""}
   ${draft ? `<section class="card"><h2>Auswertung</h2>
@@ -267,9 +350,9 @@ function viewEssen() {
     <button class="btn" data-act="draftSave">Zum Tagebuch hinzufügen</button></section>` : ""}
   <section class="card">
     <div class="row between"><h2>Tagebuch</h2><span class="muted">${s.kcal} kcal · ${Math.round(s.prot)} g Protein</span></div>
-    ${d.meals.length ? d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}${ml.time ? ` <span class="muted">${esc(ml.time)} Uhr</span>` : ""}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel", dup: dupIds(k).has(i.id) })).join("")}</div>`).join("")
+    ${d.meals.length ? d.meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).map(ml => `<div class="meal"><div class="row between"><strong>${esc(ml.slot)}${ml.time ? ` <span class="muted">${esc(ml.time)} Uhr</span>` : ""}</strong><button class="link" data-act="mealDel" data-id="${ml.id}">Löschen</button></div>${ml.items.map(i => itemRow(i, { del: "itemDel", dup: dups.has(i.id) })).join("")}</div>`).join("")
       : `<p class="muted">Für diesen Tag ist noch nichts eingetragen.</p>`}
-    ${dupIds(k).size ? `<button class="btn small ghost" data-act="dupClean">Doppelte entfernen (${dupIds(k).size})</button>` : ""}
+    ${dups.size ? `<button class="btn small ghost" data-act="dupClean">Doppelte entfernen (${dups.size})</button>` : ""}
   </section>`;
 }
 

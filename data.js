@@ -160,31 +160,38 @@ function parseFoods(txt) {
 }
 const FOODS = parseFoods(FOOD_ROWS);
 
-/* Körperregionen für den Abend-Check. v = Ansicht (f vorne, b hinten) */
+/* Körperregionen für den Abend-Check. v = Ansicht (f vorne, b hinten).
+   Oberarm, Unterarm und Oberschenkel sind je Seite in innen und außen geteilt (Endung i oder a) */
+const splitRegs = (base, name, v) => [["L", "links"], ["R", "rechts"]].flatMap(([s, sl]) => [["i", "innen"], ["a", "außen"]].map(([io, il]) => ({ id: base + s + (v === "b" ? "H" : "") + io, label: `${name} ${sl} ${il} (${v === "b" ? "hinten" : "vorne"})`, v })));
 const REGIONS = [
   // Vorderseite
   { id: "gesicht", label: "Gesicht/Ohren", v: "f" }, { id: "hals", label: "Hals vorne", v: "f" }, { id: "brust", label: "Brust", v: "f" },
-  { id: "bauch", label: "Bauch", v: "f" }, { id: "leiste", label: "Leiste/Genital", v: "f" },
-  { id: "armOL", label: "Oberarm links (vorne)", v: "f" }, { id: "armOR", label: "Oberarm rechts (vorne)", v: "f" },
-  { id: "armUL", label: "Unterarm links (vorne)", v: "f" }, { id: "armUR", label: "Unterarm rechts (vorne)", v: "f" },
+  { id: "bauch", label: "Bauch", v: "f" },
+  ...splitRegs("armO", "Oberarm", "f"), ...splitRegs("armU", "Unterarm", "f"),
   { id: "handL", label: "Hand links (Innenseite)", v: "f" }, { id: "handR", label: "Hand rechts (Innenseite)", v: "f" },
-  { id: "beinOL", label: "Oberschenkel links (vorne)", v: "f" }, { id: "beinOR", label: "Oberschenkel rechts (vorne)", v: "f" },
+  ...splitRegs("beinO", "Oberschenkel", "f"),
   { id: "kniL", label: "Knie links (vorne)", v: "f" }, { id: "kniR", label: "Knie rechts (vorne)", v: "f" },
   { id: "beinUL", label: "Unterschenkel links (vorne)", v: "f" }, { id: "beinUR", label: "Unterschenkel rechts (vorne)", v: "f" },
   { id: "fussL", label: "Fuß links (Spann)", v: "f" }, { id: "fussR", label: "Fuß rechts (Spann)", v: "f" },
   // Rückseite
   { id: "kopfhaut", label: "Kopfhaut", v: "b" }, { id: "nacken", label: "Nacken", v: "b" },
   { id: "rueckenO", label: "Oberer Rücken", v: "b" }, { id: "rueckenU", label: "Unterer Rücken", v: "b" }, { id: "gesaess", label: "Gesäß", v: "b" },
-  { id: "armOLH", label: "Oberarm links (hinten)", v: "b" }, { id: "armORH", label: "Oberarm rechts (hinten)", v: "b" },
+  ...splitRegs("armO", "Oberarm", "b"),
   { id: "ellL", label: "Ellenbogen links", v: "b" }, { id: "ellR", label: "Ellenbogen rechts", v: "b" },
-  { id: "armULH", label: "Unterarm links (hinten)", v: "b" }, { id: "armURH", label: "Unterarm rechts (hinten)", v: "b" },
+  ...splitRegs("armU", "Unterarm", "b"),
   { id: "handLH", label: "Handrücken links", v: "b" }, { id: "handRH", label: "Handrücken rechts", v: "b" },
-  { id: "beinOLH", label: "Oberschenkel links (hinten)", v: "b" }, { id: "beinORH", label: "Oberschenkel rechts (hinten)", v: "b" },
+  ...splitRegs("beinO", "Oberschenkel", "b"),
   { id: "kniLH", label: "Kniekehle links", v: "b" }, { id: "kniRH", label: "Kniekehle rechts", v: "b" },
   { id: "beinULH", label: "Wade links", v: "b" }, { id: "beinURH", label: "Wade rechts", v: "b" },
   { id: "fussLH", label: "Ferse links", v: "b" }, { id: "fussRH", label: "Ferse rechts", v: "b" }
 ];
-const REGION_LABEL = Object.fromEntries(REGIONS.map(r => [r.id, r.label]));
+/* Frühere, ungeteilte Stellen: bleiben in alten Einträgen lesbar, sind aber nicht mehr wählbar */
+const REGION_LEGACY = {
+  leiste: "Leiste", armOL: "Oberarm links (vorne)", armOR: "Oberarm rechts (vorne)", armUL: "Unterarm links (vorne)", armUR: "Unterarm rechts (vorne)",
+  beinOL: "Oberschenkel links (vorne)", beinOR: "Oberschenkel rechts (vorne)", armOLH: "Oberarm links (hinten)", armORH: "Oberarm rechts (hinten)",
+  armULH: "Unterarm links (hinten)", armURH: "Unterarm rechts (hinten)", beinOLH: "Oberschenkel links (hinten)", beinORH: "Oberschenkel rechts (hinten)"
+};
+const REGION_LABEL = Object.assign({}, REGION_LEGACY, Object.fromEntries(REGIONS.map(r => [r.id, r.label])));
 
 /* Rezepte. k = kcal pro Portion (ca.), p = Protein g, kind: unterwegs | vorbereiten | warm */
 const RECIPES = [
