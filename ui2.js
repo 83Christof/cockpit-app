@@ -219,7 +219,7 @@ function render() {
   if (act && !["mealText"].includes(act)) { const el = document.getElementById(act); if (el && el.focus) { try { el.focus({ preventScroll: true }); } catch (e) { /* egal */ } } }
   const fr = $("#mform"); if (fr) fr.addEventListener("submit", e => { e.preventDefault(); manualProduct(fr); });
   const rs = $("#restore"); if (rs) rs.addEventListener("change", restoreBackup);
-  const pf = $("#phFile"); if (pf) pf.addEventListener("change", phFileChosen);
+  $$(".phFile").forEach(i => i.addEventListener("change", phFileChosen));
 }
 function openAbendData() { ui.abend = abendDraft(ui.date); }
 
@@ -277,6 +277,7 @@ document.addEventListener("click", async e => {
     case "docQAdd": { const t = (ui.qText || "").trim(); if (!t) { toast("Bitte erst die Frage eintippen"); break; } S.doc.questions.push({ id: uid(), t }); ui.qText = ""; save(); render(); break; }
     case "docQDel": S.doc.questions = S.doc.questions.filter(q => q.id !== el.dataset.id); save(); render(); break;
     case "repPhotos": ui.repPhotos = !ui.repPhotos; render(); break;
+    case "toFotos": ui.verlaufTab = "fotos"; if (route() === "verlauf") render(); else location.hash = "verlauf"; break;
     case "phOpen": { ui.phOpen = el.dataset.id; ui.phDel = null; render(); const v = $("#phview"); if (v) v.scrollIntoView({ block: "start" }); break; }
     case "phClose": ui.phOpen = null; render(); break;
     case "phSave": { const p = (PH.items || []).find(x => x.id === el.dataset.id); if (p) phDownload(p); break; }

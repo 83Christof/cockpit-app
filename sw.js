@@ -1,5 +1,5 @@
 /* Offline-Cache für die App-Dateien. Produktabfragen (Open Food Facts) laufen immer übers Netz. */
-const CACHE = "haut-cockpit-v16";
+const CACHE = "haut-cockpit-v17";
 const FILES = ["./", "index.html", "style.css", "data.js", "tips.js", "core.js", "analysis.js", "ui1.js", "wissen.js", "fotos.js", "ui2.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 /* Beim Installieren frisch vom Server holen (cache: "reload"), damit keine alten Dateien in den neuen Cache geraten */
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting())); });

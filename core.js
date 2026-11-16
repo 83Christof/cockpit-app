@@ -17,7 +17,7 @@ const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 
 /* ---------- Speicher ---------- */
 const KEY = "haut-cockpit-v1";
-const APP_VERSION = "16";
+const APP_VERSION = "17";
 function defaults() {
   return { profile: { weight: null, height: null, kcalMax: 1900, protPerKg: 1.4, protMin: null, reminder: "21:00", watch: [], appUrl: "", hideFruit: true, custom: [], alias: {}, therapy: "", meds: { sk: "", skD: ["", "", ""], ah: "", ahMax: null, cr: "", fo: "" } }, days: {}, offCache: {}, scanHistory: [], altCache: {}, weights: {}, doc: { next: "", questions: [] }, lastBackup: null, backupSnooze: 0, skipCheck: "" };
 }

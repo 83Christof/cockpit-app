@@ -84,13 +84,28 @@ async function phFileChosen(e) {
 }
 
 /* ---------- Ansicht ---------- */
+/* Körperstelle wählen und Foto hinzufügen. Zwei Knöpfe, weil Android bei einem einzigen Dateifeld oft nur die Galerie anbietet:
+   capture="environment" öffnet direkt die Kamera, das Feld ohne capture die Bildauswahl */
+function photoAddBox(withNote) {
+  const opts = ["f", "b"].map(v => `<optgroup label="${v === "f" ? "Vorderseite" : "Rückseite"}">${REGIONS.filter(r => r.v === v).map(r => `<option value="${r.id}" ${ui.phRegion === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</optgroup>`).join("");
+  return `<label class="label" for="phReg">Körperstelle</label><select id="phReg" data-bind="phRegion"><option value="">Keine Angabe</option>${opts}</select>
+    ${withNote ? `<label class="label" for="phNote">Notiz (optional)</label><input id="phNote" value="${esc(ui.phNote)}" data-bind="phNote" placeholder="z. B. nach 2 Wochen Schaum">` : ""}
+    ${PH.busy ? `<div class="busy"><span class="spin"></span>Foto wird gespeichert</div>`
+      : `<div class="actions"><label class="btn filebtn">Foto aufnehmen<input type="file" accept="image/*" capture="environment" class="phFile" hidden></label><label class="btn ghost filebtn">Aus Galerie wählen<input type="file" accept="image/*" class="phFile" hidden></label></div>`}`;
+}
+/* Karte im Cockpit: Foto ohne Umweg über den Verlauf aufnehmen */
+function photoCard() {
+  const n = PH.items ? PH.items.filter(p => p.k === dkey()).length : 0;
+  return `<section class="card"><div class="row between"><h2>Hautfoto</h2><button class="link" data-act="toFotos">Alle Fotos ansehen</button></div>
+    ${photoAddBox(false)}
+    ${n ? `<p class="muted small">Heute gespeichert: ${n} ${n === 1 ? "Foto" : "Fotos"}.</p>` : ""}</section>`;
+}
 function viewFotos() {
   if (!phEnsure()) return `<section class="card"><div class="busy"><span class="spin"></span>Fotos werden geladen</div></section>`;
   const all = PH.items, regs = [...new Set(all.map(p => p.region || ""))];
   const flt = (ui.phFilter === "alle" || regs.includes(ui.phFilter)) ? ui.phFilter : "alle";
   const list = all.filter(p => flt === "alle" || (p.region || "") === flt);
-  const opts = sel => ["f", "b"].map(v => `<optgroup label="${v === "f" ? "Vorderseite" : "Rückseite"}">${REGIONS.filter(r => r.v === v).map(r => `<option value="${r.id}" ${sel === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</optgroup>`).join("");
-  const open = ui.phOpen ? all.find(p => p.id === ui.phOpen) : null;
+  const open =ui.phOpen ? all.find(p => p.id === ui.phOpen) : null;
   const cmp = flt !== "alle" && list.length >= 2 ? [list[list.length - 1], list[0]] : null;
   return `${PH.err ? `<p class="warn">${esc(PH.err)}</p>` : ""}
   ${open ? `<section class="card" id="phview"><div class="row between"><h2>${esc(phLabel(open))}</h2><button class="ic" data-act="phClose" aria-label="Schließen">×</button></div>
@@ -98,9 +113,7 @@ function viewFotos() {
     <p class="small">${esc(fmtDateLong(open.k))}${open.note ? " · " + esc(open.note) : ""}</p>
     <div class="actions"><button class="btn small" data-act="phSave" data-id="${open.id}">Als Datei speichern</button><button class="btn small ghost" data-act="phDel" data-id="${open.id}">${ui.phDel === open.id ? "Wirklich löschen? Nochmal tippen" : "Löschen"}</button></div></section>` : ""}
   <section class="card"><h2>Neues Foto</h2>
-    <label class="label" for="phReg">Körperstelle</label><select id="phReg" data-bind="phRegion"><option value="">Keine Angabe</option>${opts(ui.phRegion)}</select>
-    <label class="label" for="phNote">Notiz (optional)</label><input id="phNote" value="${esc(ui.phNote)}" data-bind="phNote" placeholder="z. B. nach 2 Wochen Schaum">
-    <div class="actions"><label class="btn filebtn">${PH.busy ? "Foto wird gespeichert" : "Foto aufnehmen oder wählen"}<input type="file" accept="image/*" id="phFile" hidden ${PH.busy ? "disabled" : ""}></label></div>
+    ${photoAddBox(true)}
     <p class="muted small">Gleicher Abstand und gleiches Licht machen die Bilder vergleichbar. Die Fotos bleiben nur auf diesem Handy und werden nirgends hochgeladen. Die Datensicherung in den Einstellungen nimmt sie mit.</p></section>
   <section class="card"><div class="row between"><h2>Verlauf</h2><span class="muted">${all.length} ${all.length === 1 ? "Foto" : "Fotos"}</span></div>
     ${all.length ? `<select data-bind="phFilter" aria-label="Nach Körperstelle filtern"><option value="alle">Alle Stellen</option>${regs.map(r => `<option value="${r}" ${flt === r ? "selected" : ""}>${esc(r ? (REGION_LABEL[r] || r) : "Ohne Stelle")} (${all.filter(p => (p.region || "") === r).length})</option>`).join("")}</select>` : `<p class="muted">Noch keine Fotos.</p>`}

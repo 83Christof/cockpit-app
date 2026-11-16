@@ -131,6 +131,7 @@ function viewHeute() {
     <button class="btn wide" data-act="epAdd">Eintragen</button>
     ${(d.episodes || []).length ? `<div class="eps">${d.episodes.slice().sort((a, b) => a.time.localeCompare(b.time)).map(e => `<div class="item"><span class="lamp r-${e.itch >= 7 ? "r" : e.itch >= 4 ? "y" : "g"}"></span><div class="im"><strong>${esc(e.time)} Uhr: ${e.itch}/10</strong>${(e.regions || []).length ? `<span class="muted small">${esc(e.regions.map(id => REGION_LABEL[id] || id).join(", "))}</span>` : ""}</div><button class="ic" data-act="epDel" data-id="${e.id}" aria-label="Entfernen">×</button></div>`).join("")}</div>` : ""}
   </section>
+  ${isToday() ? photoCard() : ""}
   <section class="card">
     <h2>Medikamente und Pflege</h2>
     ${medPanel(m)}

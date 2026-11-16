@@ -226,3 +226,4 @@ button.chip { min-height: 36px; padding: 6px 12px; }
 .phrep { margin: 8px 0; break-inside: avoid; }
 @media print { .phfig img { max-height: 7cm; width: auto; max-width: 100%; } }
 #nav[hidden] { display: none; }
+.filebtn { text-align: center; }
